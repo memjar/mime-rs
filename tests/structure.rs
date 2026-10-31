@@ -154,7 +154,7 @@ fn a_wrong_position_is_dropped_and_reported() {
     };
 
     assert_eq!(cst.to_bytes(), input);
-    assert!(cst.root.anomalies.contains(&MimeAnomaly::DroppedAnswer));
+    assert!(cst.root.anomalies.contains(MimeAnomaly::DroppedAnswer));
     assert!(cst.root.header.get("subject").is_some());
 }
 
@@ -189,7 +189,7 @@ fn ten_thousand_nested_multiparts_parse_on_a_small_stack() {
             assert_eq!(cst.to_bytes(), input);
             // NOTE: 64 containers nest; the 65th entity is kept as a leaf.
             assert_eq!(entities.len(), 65);
-            assert!(entities[64].anomalies.contains(&MimeAnomaly::NestingLimit));
+            assert!(entities[64].anomalies.contains(MimeAnomaly::NestingLimit));
             assert!(matches!(entities[64].body, MimeBodyNode::Leaf(_)));
             assert!(matches!(entities[63].body, MimeBodyNode::Multipart(_)));
 
@@ -217,7 +217,7 @@ fn the_entity_bound_keeps_a_multipart_whole() {
     let cst = MimeCst::parse_with(&input, opts);
 
     assert_eq!(cst.to_bytes(), input);
-    assert!(cst.root.anomalies.contains(&MimeAnomaly::PartLimit));
+    assert!(cst.root.anomalies.contains(MimeAnomaly::PartLimit));
     assert!(matches!(cst.root.body, MimeBodyNode::Leaf(_)));
 }
 

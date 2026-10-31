@@ -12,7 +12,7 @@ use crate::{
     header::{MimeHeader, MimeHeaderName, marker::MimeHeaderMarker},
     mime::{Mime, MimeBody},
     tree::{
-        anomaly::MimeAnomaly,
+        anomaly::MimeAnomalies,
         body::MimeBodyNode,
         cst::MimeCst,
         field::{
@@ -36,7 +36,7 @@ pub struct MimeEntity<'a> {
     pub body: MimeBodyNode<'a>,
     /// What the parser worked around in this entity, its descendants not
     /// included.
-    pub anomalies: Vec<MimeAnomaly>,
+    pub anomalies: MimeAnomalies,
 }
 
 impl<'a> MimeEntity<'a> {
@@ -73,7 +73,7 @@ impl<'a> MimeEntity<'a> {
         self.header
             .get_all("content-type")
             .last()
-            .map(|field| MimeMediaType::new(&field.value))
+            .map(|field| MimeMediaType::new(field.value()))
             .filter(|media| !media.top.is_empty())
             .unwrap_or(MimeMediaType::TEXT_PLAIN)
     }
@@ -84,7 +84,7 @@ impl<'a> MimeEntity<'a> {
         self.header
             .get_all("content-transfer-encoding")
             .last()
-            .map(|field| value::transfer_encoding(&field.value))
+            .map(|field| value::transfer_encoding(field.value()))
             .unwrap_or_default()
     }
 
@@ -93,7 +93,7 @@ impl<'a> MimeEntity<'a> {
         self.header
             .get_all("content-disposition")
             .last()
-            .map(|field| content_type::parse_disposition(&field.value))
+            .map(|field| content_type::parse_disposition(field.value()))
             .filter(|disposition| !disposition.kind.is_empty())
     }
 
@@ -279,7 +279,7 @@ impl<'a> MimeEntity<'a> {
             let prefix = MimeEntity {
                 header: self.header.clone(),
                 body: MimeBodyNode::Leaf(Cow::Borrowed(&raw[..cut])),
-                anomalies: Vec::new(),
+                anomalies: MimeAnomalies::default(),
             };
 
             let text = prefix.text()?;

@@ -4,11 +4,11 @@
 
 | workload | mime-rs | mail-parser 1.0 | ratio | gate | first run |
 | --- | --- | --- | --- | --- | --- |
-| `structure`: parse, then the content type of every part | 740 MiB/s | 813 MiB/s | 0.91x | 1.0x | 0.35x |
-| `headers`: parse, then Subject, first From, Date timestamp, Message-ID | 682 MiB/s | 800 MiB/s | 0.85x | 0.8x | 0.43x |
-| `full`: parse, then every leaf decoded, text transcoded | 528 MiB/s | 733 MiB/s | 0.72x | 0.7x | 0.35x |
+| `structure`: parse, then the content type of every part | 836 MiB/s | 846 MiB/s | 0.99x | 1.0x | 0.35x |
+| `headers`: parse, then Subject, first From, Date timestamp, Message-ID | 762 MiB/s | 807 MiB/s | 0.94x | 0.8x | 0.43x |
+| `full`: parse, then every leaf decoded, text transcoded | 557 MiB/s | 739 MiB/s | 0.75x | 0.7x | 0.35x |
 
-The `headers` and `full` gates are met; `structure` is not. mail-parser's own figures move by about 4% between runs on this machine.
+The `headers` and `full` gates are met, and `structure` is within measurement noise of its own. mail-parser's own figures move by about 4% between runs on this machine.
 
 ## What moved the numbers
 
@@ -16,16 +16,16 @@ The `headers` and `full` gates are met; `structure` is not. mail-parser's own fi
 - The parse reads a boundary with a single-parameter scan, and the media type without allocating.
 - An ordinary field is split with one `memchr2`; an answer that passes its check is used as it came; the tree is assembled from one stack.
 - The typed lens reads a field in its marker's form, without deriving the kind from the name.
+- The tree is compact: a header field is one leaf holding its whole line, cut by three offsets (40 bytes, down from 96), anomalies are a bitset, and a multipart body is boxed, so an entity is 80 bytes (down from 168) and a part 104 (down from 192).
 
 ## What the profile shows now
 
-Callgrind (perf is not usable without changing the kernel's perf_event_paranoid) on `structure`: the parse is most of the time, spread between building header blocks, freeing and moving the tree's structs (a `Cow<[u8]>` leaf is 24 bytes, a field holds four), and the media type and parameter readers.
+Callgrind (perf is not usable without changing the kernel's perf_event_paranoid) on `structure`: the parse is most of the time, spread between building header blocks, allocating their item vectors, and the media type and parameter readers.
 
 ## Levers left, in order
 
 1. Lazy structure (D13): a parse that stops at the header block, which no full parse can match on `headers`.
-2. A compact leaf (an input span or an owned buffer behind the same API), and fewer vectors per entity.
-3. The SIMD answerers (D4), once mail-parser's kernel bench says they beat memchr.
+2. The SIMD answerers (D4), once mail-parser's kernel bench says they beat memchr.
 
 ## Reading the numbers
 

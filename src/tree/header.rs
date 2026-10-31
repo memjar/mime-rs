@@ -37,21 +37,17 @@ pub enum MimeHeaderItem<'a> {
     Opaque(Cow<'a, [u8]>),
 }
 
-/// A header field as written: name, colon, raw value and line ending.
+/// A header field as written: one leaf holding the whole line (name, colon,
+/// raw value with its folds, line ending), cut by three offsets, so a parsed
+/// field costs one borrowed slice and an edit owns exactly its own line.
 ///
 /// Refs: <https://datatracker.ietf.org/doc/html/rfc5322#section-2.2>
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MimeHeaderField<'a> {
-    /// The field name, without the blanks before the colon.
-    pub name: Cow<'a, [u8]>,
-    /// The blanks before the colon (the RFC 5322 4.5 obsolete syntax), then
-    /// the colon.
-    pub colon: Cow<'a, [u8]>,
-    /// The raw value after the colon, its folds and leading blanks kept,
-    /// without the final line ending.
-    pub value: Cow<'a, [u8]>,
-    /// The line ending (`\r\n` or `\n`), empty at the end of the input.
-    pub eol: Cow<'a, [u8]>,
+    line: Cow<'a, [u8]>,
+    name_end: u32,
+    colon_end: u32,
+    value_end: u32,
 }
 
 impl<'a> MimeHeaderBlock<'a> {
@@ -75,7 +71,7 @@ impl<'a> MimeHeaderBlock<'a> {
 
     /// The line ending the block uses: that of its first field, or `\r\n`.
     pub fn line_ending(&self) -> &'static [u8] {
-        let eol = self.fields().map(|field| field.eol.as_ref()).next();
+        let eol = self.fields().map(|field| field.eol()).next();
 
         match eol {
             Some(b"\n") => b"\n",
@@ -92,12 +88,7 @@ impl<'a> MimeHeaderBlock<'a> {
     pub(crate) fn push_chunks<'s>(&'s self, out: &mut Vec<&'s [u8]>) {
         for item in &self.items {
             match item {
-                MimeHeaderItem::Field(field) => {
-                    out.push(&field.name);
-                    out.push(&field.colon);
-                    out.push(&field.value);
-                    out.push(&field.eol);
-                }
+                MimeHeaderItem::Field(field) => out.push(field.line()),
                 MimeHeaderItem::Opaque(line) => out.push(line),
             }
         }
@@ -112,18 +103,18 @@ impl MimeHeaderField<'_> {
     /// A name holding a space, a control byte or a NUL never matches, so a
     /// smuggled `Sub ject` is never read as `Subject`.
     pub fn is(&self, name: &str) -> bool {
-        self.name.eq_ignore_ascii_case(name.as_bytes())
+        self.name().eq_ignore_ascii_case(name.as_bytes())
     }
 
     /// The name as text, lossily when it is not UTF-8.
     pub fn name_str(&self) -> Cow<'_, str> {
-        alloc::string::String::from_utf8_lossy(&self.name)
+        alloc::string::String::from_utf8_lossy(self.name())
     }
 
     /// The raw value with its folds removed (RFC 5322 2.2.3): every line
     /// break followed by a blank is dropped, the blank kept.
     pub fn unfolded(&self) -> Cow<'_, [u8]> {
-        unfold(&self.value)
+        unfold(self.value())
     }
 }
 
@@ -175,26 +166,99 @@ impl MimeHeaderField<'_> {
     /// Reads the value in the default form of the field's name: its spec's
     /// for a known field, raw for any other.
     pub fn read(&self) -> MimeHeaderValue {
-        let form = core::str::from_utf8(&self.name)
+        let form = core::str::from_utf8(self.name())
             .ok()
             .and_then(|name| name.parse::<MimeHeaderKind>().ok())
             .map_or(MimeHeaderForm::Raw, |kind| kind.spec().form);
 
-        value::read(form, &self.value)
+        value::read(form, self.value())
     }
 
     /// Reads the value in any form, as RFC 8621 4.1.2 lets a client ask.
     pub fn read_as(&self, form: MimeHeaderForm) -> MimeHeaderValue {
-        value::read(form, &self.value)
+        value::read(form, self.value())
     }
 
     /// The field with every leaf owned, free of the input's lifetime.
     pub fn into_owned(self) -> MimeHeaderField<'static> {
         MimeHeaderField {
-            name: Cow::Owned(self.name.into_owned()),
-            colon: Cow::Owned(self.colon.into_owned()),
-            value: Cow::Owned(self.value.into_owned()),
-            eol: Cow::Owned(self.eol.into_owned()),
+            line: Cow::Owned(self.line.into_owned()),
+            name_end: self.name_end,
+            colon_end: self.colon_end,
+            value_end: self.value_end,
         }
+    }
+}
+
+impl<'a> MimeHeaderField<'a> {
+    /// Builds a field from its whole line and where its name, its colon
+    /// and its value end in it; `None` when the offsets do not cut the line
+    /// in order.
+    pub fn new(
+        line: Cow<'a, [u8]>,
+        name_end: usize,
+        colon_end: usize,
+        value_end: usize,
+    ) -> Option<Self> {
+        let in_order = name_end <= colon_end && colon_end <= value_end && value_end <= line.len();
+
+        if !in_order || line.len() > u32::MAX as usize {
+            return None;
+        }
+
+        Some(Self {
+            line,
+            name_end: name_end as u32,
+            colon_end: colon_end as u32,
+            value_end: value_end as u32,
+        })
+    }
+
+    /// Builds a field from its four pieces, joined into one owned line.
+    pub fn from_parts(
+        name: &[u8],
+        colon: &[u8],
+        value: &[u8],
+        eol: &[u8],
+    ) -> MimeHeaderField<'static> {
+        let mut line = Vec::with_capacity(name.len() + colon.len() + value.len() + eol.len());
+        line.extend_from_slice(name);
+        line.extend_from_slice(colon);
+        line.extend_from_slice(value);
+        line.extend_from_slice(eol);
+
+        MimeHeaderField {
+            line: Cow::Owned(line),
+            name_end: name.len() as u32,
+            colon_end: (name.len() + colon.len()) as u32,
+            value_end: (name.len() + colon.len() + value.len()) as u32,
+        }
+    }
+
+    /// The whole field as written, its line ending included.
+    pub fn line(&self) -> &[u8] {
+        &self.line
+    }
+
+    /// The field name, without the blanks before the colon.
+    pub fn name(&self) -> &[u8] {
+        &self.line[..self.name_end as usize]
+    }
+
+    /// The blanks before the colon (the RFC 5322 4.5 obsolete syntax), then
+    /// the colon.
+    pub fn colon(&self) -> &[u8] {
+        &self.line[self.name_end as usize..self.colon_end as usize]
+    }
+
+    /// The raw value after the colon, its folds and leading blanks kept,
+    /// without the final line ending.
+    pub fn value(&self) -> &[u8] {
+        &self.line[self.colon_end as usize..self.value_end as usize]
+    }
+
+    /// The line ending (`\r\n` or `\n`), empty at the end of the input.
+    pub fn eol(&self) -> &[u8] {
+        &self.line[self.value_end as usize..]
     }
 }

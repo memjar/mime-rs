@@ -103,7 +103,8 @@ impl<'a> MimeCst<'a> {
                 entity
                     .anomalies
                     .iter()
-                    .map(move |anomaly| (index, *anomaly))
+                    .map(move |anomaly| (index, anomaly))
+                    .collect::<Vec<_>>()
             })
             .collect()
     }

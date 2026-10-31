@@ -56,7 +56,7 @@ use alloc::{borrow::Cow, boxed::Box, vec, vec::Vec};
 use core::{mem, ops::Range};
 
 use crate::tree::{
-    anomaly::MimeAnomaly,
+    anomaly::{MimeAnomalies, MimeAnomaly},
     body::{MimeBodyNode, MimeMultipart, MimePart},
     coroutine::MimeCoroutineState,
     cst::MimeCst,
@@ -189,7 +189,7 @@ impl<'a> MimeParse<'a> {
                     if dropped {
                         self.flat[split.entity]
                             .anomalies
-                            .push(MimeAnomaly::DroppedAnswer);
+                            .insert(MimeAnomaly::DroppedAnswer);
                     }
 
                     self.dashes = Some(dashes.into_owned());
@@ -209,7 +209,7 @@ impl<'a> MimeParse<'a> {
                     if dropped {
                         self.flat[split.entity]
                             .anomalies
-                            .push(MimeAnomaly::DroppedAnswer);
+                            .insert(MimeAnomaly::DroppedAnswer);
                     }
 
                     self.split(split, Some(&found));
@@ -253,7 +253,12 @@ impl<'a> MimeParse<'a> {
                 end: Cow::Borrowed(first_line),
             };
 
-            return self.body(task, header, range.start + first_line.len(), Vec::new());
+            return self.body(
+                task,
+                header,
+                range.start + first_line.len(),
+                MimeAnomalies::default(),
+            );
         }
 
         self.state = State::FindFieldEnds(task);
@@ -265,14 +270,14 @@ impl<'a> MimeParse<'a> {
     fn entity(&mut self, task: Task, ends: &[usize], dropped: bool) -> Option<MimeParseYield> {
         let input = self.input;
         let end = task.range.end;
-        let mut anomalies = Vec::new();
+        let mut anomalies = MimeAnomalies::default();
         let mut items = Vec::with_capacity(ends.len() + 1);
         let mut block_end: &[u8] = &[];
         let mut pos = task.range.start;
         let mut terminated = false;
 
         if dropped {
-            anomalies.push(MimeAnomaly::DroppedAnswer);
+            anomalies.insert(MimeAnomaly::DroppedAnswer);
         }
 
         for &at in ends {
@@ -300,7 +305,12 @@ impl<'a> MimeParse<'a> {
             .iter()
             .any(|item| matches!(item, MimeHeaderItem::Field(_)))
         {
-            anomalies.retain(|anomaly| *anomaly == MimeAnomaly::DroppedAnswer);
+            let dropped = anomalies.contains(MimeAnomaly::DroppedAnswer);
+            anomalies = MimeAnomalies::default();
+
+            if dropped {
+                anomalies.insert(MimeAnomaly::DroppedAnswer);
+            }
             return self.body(
                 task.clone(),
                 MimeHeaderBlock::default(),
@@ -310,7 +320,7 @@ impl<'a> MimeParse<'a> {
         }
 
         if !terminated {
-            anomalies.push(MimeAnomaly::NoBlankLine);
+            anomalies.insert(MimeAnomaly::NoBlankLine);
         }
 
         let header = MimeHeaderBlock {
@@ -328,7 +338,7 @@ impl<'a> MimeParse<'a> {
         task: Task,
         header: MimeHeaderBlock<'a>,
         start: usize,
-        mut anomalies: Vec<MimeAnomaly>,
+        mut anomalies: MimeAnomalies,
     ) -> Option<MimeParseYield> {
         let input = self.input;
         let body = start..task.range.end;
@@ -339,7 +349,7 @@ impl<'a> MimeParse<'a> {
         let too_deep = container && task.depth > self.max_depth;
 
         if too_deep {
-            anomalies.push(MimeAnomaly::NestingLimit);
+            anomalies.insert(MimeAnomaly::NestingLimit);
         }
 
         self.flat.push(Flat {
@@ -366,7 +376,7 @@ impl<'a> MimeParse<'a> {
                 // line of the body, so it never matches.
                 if split.boundary.iter().all(|byte| *byte == b'-') {
                     let entity = &mut self.flat[index];
-                    entity.anomalies.push(MimeAnomaly::MissingDelimiter);
+                    entity.anomalies.insert(MimeAnomaly::MissingDelimiter);
                     entity.body = FlatBody::Multipart {
                         preamble: &input[body],
                         delimiters: Vec::new(),
@@ -488,7 +498,7 @@ impl<'a> MimeParse<'a> {
         if delimiters.is_empty() {
             self.flat[split.entity]
                 .anomalies
-                .push(MimeAnomaly::MissingDelimiter);
+                .insert(MimeAnomaly::MissingDelimiter);
             return None;
         }
 
@@ -500,20 +510,20 @@ impl<'a> MimeParse<'a> {
         if self.flat.len() + self.tasks.len() + opens > self.max_entities {
             self.flat[split.entity]
                 .anomalies
-                .push(MimeAnomaly::PartLimit);
+                .insert(MimeAnomaly::PartLimit);
             return None;
         }
 
         let entity = &mut self.flat[split.entity];
 
         if fell_back {
-            entity.anomalies.push(MimeAnomaly::FallbackDelimiter);
+            entity.anomalies.insert(MimeAnomaly::FallbackDelimiter);
         }
 
         let closed = delimiters.last().is_some_and(|delimiter| delimiter.close);
 
         if !closed {
-            entity.anomalies.push(MimeAnomaly::Unterminated);
+            entity.anomalies.insert(MimeAnomaly::Unterminated);
         }
 
         let first = delimiters[0].start;
@@ -577,7 +587,7 @@ impl<'a> MimeParse<'a> {
                     delimiters,
                     close,
                     epilogue,
-                } => MimeBodyNode::Multipart(MimeMultipart {
+                } => MimeBodyNode::Multipart(Box::new(MimeMultipart {
                     preamble: Cow::Borrowed(preamble),
                     parts: delimiters
                         .into_iter()
@@ -589,7 +599,7 @@ impl<'a> MimeParse<'a> {
                         .collect(),
                     close: Cow::Borrowed(close),
                     epilogue: Cow::Borrowed(epilogue),
-                }),
+                })),
                 FlatBody::Message => {
                     MimeBodyNode::Message(Box::new(kids.pop().unwrap_or_default()))
                 }
@@ -639,7 +649,7 @@ struct Split {
 struct Flat<'a> {
     header: MimeHeaderBlock<'a>,
     body: FlatBody<'a>,
-    anomalies: Vec<MimeAnomaly>,
+    anomalies: MimeAnomalies,
 }
 
 #[derive(Debug)]
@@ -665,7 +675,7 @@ impl Kind {
     fn of(header: &MimeHeaderBlock<'_>, digest: bool) -> Self {
         let field = header.get_all("content-type").last();
         let (top, sub) = field.map_or((&[][..], &[][..]), |field| {
-            let media = MimeMediaType::new(&field.value);
+            let media = MimeMediaType::new(field.value());
             (media.top, media.sub)
         });
 
@@ -684,7 +694,7 @@ impl Kind {
             };
         }
 
-        let value = field.map(|field| field.value.as_ref()).unwrap_or_default();
+        let value = field.map(|field| field.value()).unwrap_or_default();
 
         {
             match raw_param(value, "boundary").filter(|b| !b.is_empty()) {
@@ -706,7 +716,7 @@ pub(crate) fn identity_encoding(header: &MimeHeaderBlock<'_>) -> bool {
     };
 
     !matches!(
-        crate::tree::field::value::transfer_encoding(&field.value),
+        crate::tree::field::value::transfer_encoding(field.value()),
         MimeTransferEncoding::Base64 | MimeTransferEncoding::QuotedPrintable
     )
 }
@@ -811,9 +821,9 @@ fn starts_with_field(bytes: &[u8]) -> bool {
 fn push_items<'a>(
     bytes: &'a [u8],
     items: &mut Vec<MimeHeaderItem<'a>>,
-    anomalies: &mut Vec<MimeAnomaly>,
+    anomalies: &mut MimeAnomalies,
 ) {
-    let (content, eol) = if let Some(content) = bytes.strip_suffix(b"\r\n") {
+    let (content, _) = if let Some(content) = bytes.strip_suffix(b"\r\n") {
         (content, &bytes[content.len()..])
     } else if let Some(content) = bytes.strip_suffix(b"\n") {
         (content, &bytes[content.len()..])
@@ -832,12 +842,7 @@ fn push_items<'a>(
             .rposition(|byte| !matches!(byte, b' ' | b'\t'))
             .map_or(0, |at| at + 1);
 
-        items.push(MimeHeaderItem::Field(MimeHeaderField {
-            name: Cow::Borrowed(&content[..name_end]),
-            colon: Cow::Borrowed(&content[name_end..=colon]),
-            value: Cow::Borrowed(&content[colon + 1..]),
-            eol: Cow::Borrowed(eol),
-        }));
+        push_field(bytes, name_end, colon + 1, content.len(), items);
         return;
     }
 
@@ -863,13 +868,13 @@ fn push_items<'a>(
     }
 
     let Some(start) = start else {
-        anomalies.push(MimeAnomaly::OpaqueLine);
+        anomalies.insert(MimeAnomaly::OpaqueLine);
         items.push(MimeHeaderItem::Opaque(Cow::Borrowed(bytes)));
         return;
     };
 
     if start > 0 {
-        anomalies.push(MimeAnomaly::OpaqueLine);
+        anomalies.insert(MimeAnomaly::OpaqueLine);
         items.push(MimeHeaderItem::Opaque(Cow::Borrowed(&content[..start])));
     }
 
@@ -890,12 +895,7 @@ fn push_items<'a>(
         .rposition(|byte| !matches!(byte, b' ' | b'\t'))
         .map_or(0, |at| at + 1);
 
-    items.push(MimeHeaderItem::Field(MimeHeaderField {
-        name: Cow::Borrowed(&field[..name_end]),
-        colon: Cow::Borrowed(&field[name_end..=colon]),
-        value: Cow::Borrowed(&field[colon + 1..]),
-        eol: Cow::Borrowed(eol),
-    }));
+    push_field(&bytes[start..], name_end, colon + 1, field.len(), items);
 }
 
 /// Whether a physical line holds a colon past its leading colons.
@@ -940,4 +940,19 @@ fn checked<'r>(
     }
 
     (Cow::Owned(kept), dropped)
+}
+
+/// Pushes a field cut from its whole line, its line ending included; a
+/// line too long for the offsets stays opaque.
+fn push_field<'a>(
+    line: &'a [u8],
+    name_end: usize,
+    colon_end: usize,
+    value_end: usize,
+    items: &mut Vec<MimeHeaderItem<'a>>,
+) {
+    match MimeHeaderField::new(Cow::Borrowed(line), name_end, colon_end, value_end) {
+        Some(field) => items.push(MimeHeaderItem::Field(field)),
+        None => items.push(MimeHeaderItem::Opaque(Cow::Borrowed(line))),
+    }
 }

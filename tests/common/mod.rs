@@ -145,9 +145,7 @@ fn walk(entity: &MimeEntity<'_>, parent: Option<usize>, offset: &mut usize, out:
         .items
         .iter()
         .map(|item| match item {
-            MimeHeaderItem::Field(field) => {
-                field.name.len() + field.colon.len() + field.value.len() + field.eol.len()
-            }
+            MimeHeaderItem::Field(field) => field.line().len(),
             MimeHeaderItem::Opaque(line) => line.len(),
         })
         .sum::<usize>()

@@ -17,7 +17,7 @@ pub enum MimeBodyNode<'a> {
     /// Raw content, still transfer-encoded.
     Leaf(Cow<'a, [u8]>),
     /// A multipart split at its delimiter lines.
-    Multipart(MimeMultipart<'a>),
+    Multipart(Box<MimeMultipart<'a>>),
     /// A nested `message/rfc822` or `message/global` entity.
     Message(Box<MimeEntity<'a>>),
 }
@@ -103,7 +103,7 @@ impl MimeBodyNode<'_> {
     pub fn into_owned(self) -> MimeBodyNode<'static> {
         match self {
             Self::Leaf(bytes) => MimeBodyNode::Leaf(Cow::Owned(bytes.into_owned())),
-            Self::Multipart(multipart) => MimeBodyNode::Multipart(MimeMultipart {
+            Self::Multipart(multipart) => MimeBodyNode::Multipart(Box::new(MimeMultipart {
                 preamble: Cow::Owned(multipart.preamble.into_owned()),
                 parts: multipart
                     .parts
@@ -115,7 +115,7 @@ impl MimeBodyNode<'_> {
                     .collect(),
                 close: Cow::Owned(multipart.close.into_owned()),
                 epilogue: Cow::Owned(multipart.epilogue.into_owned()),
-            }),
+            })),
             Self::Message(entity) => MimeBodyNode::Message(Box::new(entity.into_owned())),
         }
     }
