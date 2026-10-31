@@ -15,14 +15,14 @@ use crate::{
         anomaly::MimeAnomaly,
         body::MimeBodyNode,
         cst::MimeCst,
-        field::{content_type, value},
+        field::{
+            content_type::{self, MimeMediaType},
+            value,
+        },
         header::MimeHeaderBlock,
         lists::MimeBodyLists,
     },
-    value::{
-        content_type::{MimeContentType, MimeDisposition},
-        transfer_encoding::MimeTransferEncoding,
-    },
+    value::{content_type::MimeDisposition, transfer_encoding::MimeTransferEncoding},
 };
 
 /// A header block and a body.
@@ -62,22 +62,20 @@ impl<'a> MimeEntity<'a> {
     /// The first field the marker names, read in its form.
     pub fn header<M: MimeHeaderMarker>(&self) -> Option<M::Value> {
         let field = self.header.get(&M::KIND)?;
-        M::from_value(field.read())
+        M::from_value(field.read_as(M::KIND.spec().form))
     }
 
     /// The content type: the last Content-Type field, or `text/plain` with
     /// none (RFC 2045 5.2).
-    pub fn content_type(&self) -> MimeContentType {
+    ///
+    /// Borrowed from the field: the parameters are parsed only when asked.
+    pub fn content_type(&self) -> MimeMediaType<'_> {
         self.header
             .get_all("content-type")
             .last()
-            .map(|field| content_type::parse_content_type(&field.value))
-            .filter(|content_type| !content_type.top.is_empty())
-            .unwrap_or_else(|| MimeContentType {
-                top: "text".into(),
-                sub: "plain".into(),
-                params: Vec::new(),
-            })
+            .map(|field| MimeMediaType::new(&field.value))
+            .filter(|media| !media.top.is_empty())
+            .unwrap_or(MimeMediaType::TEXT_PLAIN)
     }
 
     /// The transfer encoding: the last Content-Transfer-Encoding field, or
@@ -106,7 +104,7 @@ impl<'a> MimeEntity<'a> {
             .disposition()
             .and_then(|disposition| disposition.param("filename").map(String::from));
 
-        from_disposition.or_else(|| self.content_type().param("name").map(String::from))
+        from_disposition.or_else(|| self.content_type().param("name"))
     }
 
     /// Projects the entity onto the decoded model: every field read in its
@@ -226,6 +224,7 @@ impl<'a> MimeEntity<'a> {
         let (bytes, mut problems) = self.decoded_checked()?;
         let content_type = self.content_type();
         let label = content_type.param("charset");
+        let label = label.as_deref();
 
         let text: Cow<'_, str> = match bytes {
             Cow::Borrowed(bytes) => {

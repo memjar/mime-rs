@@ -76,7 +76,7 @@ fn parse_structure<'t, 'a>(
         let kind = if multipart_type == "digest" && part.header.get("content-type").is_none() {
             String::from("message/rfc822")
         } else {
-            lower(&content_type.top) + "/" + &lower(&content_type.sub)
+            lower(content_type.top) + "/" + &lower(content_type.sub)
         };
         let is_inline_media = is_inline_media(&kind);
         let is_attachment = part
@@ -90,7 +90,7 @@ fn parse_structure<'t, 'a>(
                     && (is_inline_media || part.attachment_name().is_none())));
 
         if let MimeBodyNode::Multipart(multipart) = &part.body {
-            let sub = lower(&content_type.sub);
+            let sub = lower(content_type.sub);
             let children: Vec<&MimeEntity<'a>> =
                 multipart.parts.iter().map(|part| &part.entity).collect();
 
@@ -166,6 +166,6 @@ fn is_inline_media(kind: &str) -> bool {
     kind.starts_with("image/") || kind.starts_with("audio/") || kind.starts_with("video/")
 }
 
-fn lower(text: &str) -> String {
-    text.to_ascii_lowercase()
+fn lower(text: &[u8]) -> String {
+    String::from_utf8_lossy(text).to_ascii_lowercase()
 }

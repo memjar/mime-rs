@@ -10,7 +10,7 @@
 use alloc::{borrow::Cow, vec::Vec};
 
 use crate::{
-    header::{MimeHeaderName, spec::MimeHeaderForm},
+    header::{MimeHeaderKind, spec::MimeHeaderForm},
     tree::field::value,
     value::MimeHeaderValue,
 };
@@ -175,8 +175,12 @@ impl MimeHeaderField<'_> {
     /// Reads the value in the default form of the field's name: its spec's
     /// for a known field, raw for any other.
     pub fn read(&self) -> MimeHeaderValue {
-        let name = MimeHeaderName::new(&self.name_str());
-        value::read(name.default_form(), &self.value)
+        let form = core::str::from_utf8(&self.name)
+            .ok()
+            .and_then(|name| name.parse::<MimeHeaderKind>().ok())
+            .map_or(MimeHeaderForm::Raw, |kind| kind.spec().form);
+
+        value::read(form, &self.value)
     }
 
     /// Reads the value in any form, as RFC 8621 4.1.2 lets a client ask.

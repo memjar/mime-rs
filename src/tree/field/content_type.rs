@@ -8,10 +8,84 @@
 use alloc::{borrow::Cow, string::String, vec::Vec};
 
 use crate::{
-    codec::rfc2231::{self, MimeRawParam},
+    codec::{
+        rfc2047,
+        rfc2231::{self, MimeRawParam},
+    },
     tree::field::lex::Lexer,
     value::content_type::{MimeContentType, MimeDisposition, MimeParam},
 };
+
+/// A Content-Type value read in place: the type and subtype borrowed from
+/// the field, the parameters parsed only when asked for.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct MimeMediaType<'v> {
+    /// The top-level type, as written, empty when the value has none.
+    pub top: &'v [u8],
+    /// The subtype, as written, empty when missing.
+    pub sub: &'v [u8],
+    /// The raw field value, read again for its parameters.
+    pub raw: &'v [u8],
+}
+
+impl<'v> MimeMediaType<'v> {
+    /// The `text/plain` an entity with no Content-Type is (RFC 2045 5.2).
+    pub const TEXT_PLAIN: MimeMediaType<'static> = MimeMediaType {
+        top: b"text",
+        sub: b"plain",
+        raw: b"",
+    };
+
+    /// Reads the type and subtype of a raw Content-Type value, allocating
+    /// nothing: comments and blanks skipped, the subtype stopping at `;`.
+    pub fn new(raw: &'v [u8]) -> Self {
+        let mut lex = Lexer::new(raw);
+        lex.skip_cfws();
+
+        let top = lex.until(|byte| matches!(byte, b'/' | b';' | b'(') || is_blank(byte));
+        lex.skip_cfws();
+
+        if lex.peek() != Some(b'/') {
+            return Self { top, sub: &[], raw };
+        }
+
+        lex.bump();
+        lex.skip_cfws();
+
+        let sub = lex.until(|byte| matches!(byte, b';' | b'(') || is_blank(byte));
+        Self { top, sub, raw }
+    }
+
+    /// Whether the type is `top/sub`, compared ASCII case-insensitively.
+    pub fn is(&self, top: &str, sub: &str) -> bool {
+        self.top.eq_ignore_ascii_case(top.as_bytes())
+            && self.sub.eq_ignore_ascii_case(sub.as_bytes())
+    }
+
+    /// Whether the top-level type is `top`, compared ASCII case-insensitively.
+    pub fn is_top(&self, top: &str) -> bool {
+        self.top.eq_ignore_ascii_case(top.as_bytes())
+    }
+
+    /// The decoded value of the first parameter named `name`, compared
+    /// ASCII case-insensitively; parses the parameters.
+    pub fn param(&self, name: &str) -> Option<String> {
+        raw_param(self.raw, name).map(|value| String::from_utf8_lossy(&value).into_owned())
+    }
+
+    /// The whole value decoded, parameters included.
+    pub fn to_content_type(&self) -> MimeContentType {
+        if self.raw.is_empty() && !self.top.is_empty() {
+            return MimeContentType {
+                top: String::from_utf8_lossy(self.top).into_owned(),
+                sub: String::from_utf8_lossy(self.sub).into_owned(),
+                params: Vec::new(),
+            };
+        }
+
+        parse_content_type(self.raw)
+    }
+}
 
 /// Reads a Content-Type value. A value with no type before its `/` or its
 /// first `;` reads as the default (empty) content type.
@@ -60,6 +134,83 @@ pub fn parse_disposition(value: &[u8]) -> MimeDisposition {
     MimeDisposition {
         kind: String::from_utf8_lossy(kind).into_owned(),
         params: params(&mut lex),
+    }
+}
+
+/// The value of one parameter of a Content-Type or Content-Disposition
+/// value, read without decoding any other: unquoted and unescaped, or, for
+/// an RFC 2231 or encoded-word value, decoded by the full reader.
+pub(crate) fn raw_param(value: &[u8], name: &str) -> Option<Vec<u8>> {
+    let mut lex = Lexer::new(value);
+
+    // NOTE: past the media type; a parameter may follow it with no `;`.
+    lex.skip_cfws();
+    lex.until(|byte| matches!(byte, b'/' | b';' | b'(') || is_blank(byte));
+    lex.skip_cfws();
+
+    if lex.peek() == Some(b'/') {
+        lex.bump();
+        lex.skip_cfws();
+        lex.until(|byte| matches!(byte, b';' | b'(') || is_blank(byte));
+    }
+
+    let full = || {
+        let params = parse_content_type(value).params;
+        params
+            .into_iter()
+            .find(|param| param.name.eq_ignore_ascii_case(name))
+            .map(|param| param.value.into_bytes())
+    };
+
+    loop {
+        while matches!(lex.peek(), Some(b';')) {
+            lex.bump();
+        }
+
+        lex.skip_cfws();
+
+        if lex.is_done() {
+            return None;
+        }
+
+        let start = lex.pos;
+        let found = lex.until(|byte| matches!(byte, b'=' | b';' | b'(') || is_blank(byte));
+        lex.skip_cfws();
+
+        if lex.peek() != Some(b'=') {
+            if lex.pos == start {
+                lex.bump();
+            }
+
+            continue;
+        }
+
+        lex.bump();
+        lex.skip_cfws();
+
+        let extended = found.len() > name.len()
+            && found[..name.len()].eq_ignore_ascii_case(name.as_bytes())
+            && found[name.len()] == b'*';
+
+        if extended {
+            return full();
+        }
+
+        let wanted = found.eq_ignore_ascii_case(name.as_bytes());
+        let value: Vec<u8> = if lex.peek() == Some(b'"') {
+            lex.quoted()
+        } else {
+            lex.until(|byte| matches!(byte, b';' | b'(') || is_blank(byte))
+                .to_vec()
+        };
+
+        if wanted {
+            return if rfc2047::contains_word_start(&value) {
+                full()
+            } else {
+                Some(value)
+            };
+        }
     }
 }
 

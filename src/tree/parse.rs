@@ -61,7 +61,7 @@ use crate::tree::{
     coroutine::MimeCoroutineState,
     cst::MimeCst,
     entity::MimeEntity,
-    field::content_type::parse_content_type,
+    field::content_type::{MimeMediaType, raw_param},
     header::{MimeHeaderBlock, MimeHeaderField, MimeHeaderItem},
     scan::scalar::is_empty_line,
 };
@@ -128,7 +128,6 @@ impl<'a> MimeParse<'a> {
     pub fn new(input: &'a [u8], opts: MimeParseOptions) -> Self {
         let root = Task {
             range: 0..input.len(),
-            parent: None,
             depth: 1,
             digest: false,
         };
@@ -193,7 +192,7 @@ impl<'a> MimeParse<'a> {
                             .push(MimeAnomaly::DroppedAnswer);
                     }
 
-                    self.dashes = Some(dashes);
+                    self.dashes = Some(dashes.into_owned());
 
                     if let Some(request) = self.split(split, None) {
                         return MimeCoroutineState::Yielded(request);
@@ -234,11 +233,19 @@ impl<'a> MimeParse<'a> {
         let range = task.range.clone();
         let first = &input[range.clone()];
 
-        let line_end = first.iter().position(|byte| *byte == b'\n');
+        // NOTE: only a line starting with a blank or a line ending can be
+        // empty, so only such a line is scanned.
+        let maybe_blank = matches!(first.first(), Some(b' ' | b'\t' | b'\r' | b'\n'));
+        let line_end = if maybe_blank {
+            first.iter().position(|byte| *byte == b'\n')
+        } else {
+            None
+        };
         let first_line = &first[..line_end.map_or(first.len(), |end| end + 1)];
-        let blank_line = first_line
-            .iter()
-            .all(|byte| matches!(byte, b' ' | b'\t' | b'\r' | b'\n'));
+        let blank_line = maybe_blank
+            && first_line
+                .iter()
+                .all(|byte| matches!(byte, b' ' | b'\t' | b'\r' | b'\n'));
 
         if first.is_empty() || (blank_line && line_end.is_some()) {
             let header = MimeHeaderBlock {
@@ -336,7 +343,6 @@ impl<'a> MimeParse<'a> {
         }
 
         self.flat.push(Flat {
-            parent: task.parent,
             header,
             body: FlatBody::Leaf(&input[body.clone()]),
             anomalies,
@@ -381,7 +387,6 @@ impl<'a> MimeParse<'a> {
                 self.flat[index].body = FlatBody::Message;
                 self.tasks.push(Task {
                     range: body,
-                    parent: Some(index),
                     depth: task.depth + 1,
                     digest: false,
                 });
@@ -537,7 +542,6 @@ impl<'a> MimeParse<'a> {
         for (_, content) in parts.into_iter().rev() {
             self.tasks.push(Task {
                 range: content,
-                parent: Some(split.entity),
                 depth: split.depth + 1,
                 digest: split.digest,
             });
@@ -548,13 +552,23 @@ impl<'a> MimeParse<'a> {
 
     /// Folds the flat entities, last first, into the nested tree.
     fn assemble(&mut self) -> MimeCst<'a> {
+        // NOTE: walked last first, every entity finds its children on top of
+        // the stack, the first child topmost, its descendants already folded.
         let flat = mem::take(&mut self.flat);
-        let mut children: Vec<Vec<MimeEntity<'a>>> = (0..flat.len()).map(|_| Vec::new()).collect();
-        let mut root = MimeEntity::default();
+        let mut stack: Vec<MimeEntity<'a>> = Vec::new();
 
-        for (index, entity) in flat.into_iter().enumerate().rev() {
-            let mut kids = mem::take(&mut children[index]);
-            kids.reverse();
+        for entity in flat.into_iter().rev() {
+            let count = match &entity.body {
+                FlatBody::Leaf(_) => 0,
+                FlatBody::Multipart { delimiters, .. } => delimiters.len(),
+                FlatBody::Message => 1,
+            };
+
+            let mut kids: Vec<MimeEntity<'a>> = Vec::with_capacity(count);
+
+            for _ in 0..count {
+                kids.push(stack.pop().unwrap_or_default());
+            }
 
             let body = match entity.body {
                 FlatBody::Leaf(bytes) => MimeBodyNode::Leaf(Cow::Borrowed(bytes)),
@@ -587,13 +601,12 @@ impl<'a> MimeParse<'a> {
                 anomalies: entity.anomalies,
             };
 
-            match entity.parent {
-                Some(parent) => children[parent].push(built),
-                None => root = built,
-            }
+            stack.push(built);
         }
 
-        MimeCst { root }
+        MimeCst {
+            root: stack.pop().unwrap_or_default(),
+        }
     }
 }
 
@@ -609,7 +622,6 @@ enum State {
 #[derive(Clone, Debug)]
 struct Task {
     range: Range<usize>,
-    parent: Option<usize>,
     depth: usize,
     digest: bool,
 }
@@ -625,7 +637,6 @@ struct Split {
 
 #[derive(Debug)]
 struct Flat<'a> {
-    parent: Option<usize>,
     header: MimeHeaderBlock<'a>,
     body: FlatBody<'a>,
     anomalies: Vec<MimeAnomaly>,
@@ -653,7 +664,10 @@ enum Kind {
 impl Kind {
     fn of(header: &MimeHeaderBlock<'_>, digest: bool) -> Self {
         let field = header.get_all("content-type").last();
-        let (top, sub) = field.map_or((&[][..], &[][..]), |field| media_type(&field.value));
+        let (top, sub) = field.map_or((&[][..], &[][..]), |field| {
+            let media = MimeMediaType::new(&field.value);
+            (media.top, media.sub)
+        });
 
         if top.is_empty() {
             return if digest { Self::Message } else { Self::Leaf };
@@ -673,7 +687,7 @@ impl Kind {
         let value = field.map(|field| field.value.as_ref()).unwrap_or_default();
 
         {
-            match boundary(value).filter(|b| !b.is_empty()) {
+            match raw_param(value, "boundary").filter(|b| !b.is_empty()) {
                 Some(boundary) => Self::Multipart {
                     boundary,
                     digest: sub.eq_ignore_ascii_case(b"digest"),
@@ -682,27 +696,6 @@ impl Kind {
             }
         }
     }
-}
-
-/// The type and subtype of a Content-Type value, borrowed and allocating
-/// nothing: comments and blanks skipped, the subtype stopping at `;`.
-fn media_type(value: &[u8]) -> (&[u8], &[u8]) {
-    let mut lex = crate::tree::field::lex::Lexer::new(value);
-    lex.skip_cfws();
-
-    let stop = |byte: u8| matches!(byte, b'/' | b';' | b'(' | b' ' | b'\t' | b'\r' | b'\n');
-    let top = lex.until(stop);
-    lex.skip_cfws();
-
-    if lex.peek() != Some(b'/') {
-        return (top, &[]);
-    }
-
-    lex.bump();
-    lex.skip_cfws();
-
-    let sub = lex.until(|byte| matches!(byte, b';' | b'(' | b' ' | b'\t' | b'\r' | b'\n'));
-    (top, sub)
 }
 
 /// Whether the entity's transfer encoding leaves its body as written:
@@ -828,20 +821,33 @@ fn push_items<'a>(
         (bytes, &bytes[bytes.len()..])
     };
 
+    // NOTE: the common field, a name then a colon on its first line, is
+    // read with one search.
+    if !matches!(content.first(), None | Some(b' ' | b'\t' | b':'))
+        && let Some(colon) =
+            ::memchr::memchr2(b':', b'\n', content).filter(|&at| content[at] == b':')
+    {
+        let name_end = content[..colon]
+            .iter()
+            .rposition(|byte| !matches!(byte, b' ' | b'\t'))
+            .map_or(0, |at| at + 1);
+
+        items.push(MimeHeaderItem::Field(MimeHeaderField {
+            name: Cow::Borrowed(&content[..name_end]),
+            colon: Cow::Borrowed(&content[name_end..=colon]),
+            value: Cow::Borrowed(&content[colon + 1..]),
+            eol: Cow::Borrowed(eol),
+        }));
+        return;
+    }
+
     // NOTE: the field starts on the first physical line holding a colon,
     // after its folding blanks; a first line starting with a blank has no
     // field to continue.
-    let first_end = ::memchr::memchr(b'\n', content).unwrap_or(content.len());
-    let first = &content[..first_end];
-    let fast = !matches!(first.first(), None | Some(b' ' | b'\t' | b':')) && first.contains(&b':');
-
-    let mut start = fast.then_some(0);
+    let mut start = None;
     let mut line_start = 0;
 
-    for line in content
-        .split_inclusive(|byte| *byte == b'\n')
-        .take(if fast { 0 } else { usize::MAX })
-    {
+    for line in content.split_inclusive(|byte| *byte == b'\n') {
         let lead = line
             .iter()
             .take_while(|byte| matches!(byte, b' ' | b'\t'))
@@ -901,12 +907,25 @@ fn has_colon(line: &[u8]) -> bool {
 
 /// Keeps the positions of an answer that lie in the range, increase and
 /// pass `valid`, reporting whether any was dropped.
-fn checked(
-    arg: Option<&[usize]>,
+fn checked<'r>(
+    arg: Option<&'r [usize]>,
     range: &Range<usize>,
     valid: impl Fn(usize) -> bool,
-) -> (Vec<usize>, bool) {
+) -> (Cow<'r, [usize]>, bool) {
     let answer = arg.unwrap_or_default();
+
+    // NOTE: an answer that passes whole is used as it came.
+    let mut last = None;
+    let whole = answer.iter().all(|&at| {
+        let in_order = last.is_none_or(|last| at > last);
+        last = Some(at);
+        range.contains(&at) && in_order && valid(at)
+    });
+
+    if whole {
+        return (Cow::Borrowed(answer), false);
+    }
+
     let mut kept = Vec::with_capacity(answer.len());
     let mut dropped = false;
 
@@ -920,69 +939,5 @@ fn checked(
         }
     }
 
-    (kept, dropped)
-}
-
-/// The `boundary` parameter of a Content-Type value, read without decoding
-/// any other parameter; an RFC 2231 or encoded-word boundary falls back to
-/// the full reader.
-fn boundary(value: &[u8]) -> Option<Vec<u8>> {
-    let mut lex = crate::tree::field::lex::Lexer::new(value);
-    let blank = |byte: u8| matches!(byte, b' ' | b'\t' | b'\r' | b'\n');
-
-    // NOTE: past the media type; a parameter may follow it with no `;`.
-    lex.skip_cfws();
-    lex.until(|byte| matches!(byte, b'/' | b';' | b'(') || blank(byte));
-    lex.skip_cfws();
-
-    if lex.peek() == Some(b'/') {
-        lex.bump();
-        lex.skip_cfws();
-        lex.until(|byte| matches!(byte, b';' | b'(') || blank(byte));
-    }
-
-    loop {
-        while matches!(lex.peek(), Some(b';')) {
-            lex.bump();
-        }
-
-        lex.skip_cfws();
-
-        if lex.is_done() {
-            return None;
-        }
-
-        let start = lex.pos;
-        let name = lex.until(|byte| matches!(byte, b'=' | b';' | b'(') || blank(byte));
-        lex.skip_cfws();
-
-        if lex.peek() != Some(b'=') {
-            if lex.pos == start {
-                lex.bump();
-            }
-
-            continue;
-        }
-
-        lex.bump();
-        lex.skip_cfws();
-
-        let wanted = name.eq_ignore_ascii_case(b"boundary");
-
-        if name.len() > 8 && name[..8].eq_ignore_ascii_case(b"boundary") {
-            let full = parse_content_type(value);
-            return full.param("boundary").map(|b| b.as_bytes().to_vec());
-        }
-
-        let value: Vec<u8> = if lex.peek() == Some(b'"') {
-            lex.quoted()
-        } else {
-            lex.until(|byte| matches!(byte, b';' | b'(') || blank(byte))
-                .to_vec()
-        };
-
-        if wanted {
-            return Some(value);
-        }
-    }
+    (Cow::Owned(kept), dropped)
 }
