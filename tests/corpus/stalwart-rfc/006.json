@@ -1,0 +1,218 @@
+{
+  "messages": [
+    {
+      "id": 0,
+      "root": 0,
+      "container": null,
+      "source": "raw",
+      "text_body": [
+        1
+      ],
+      "html_body": [
+        2
+      ],
+      "attachments": [],
+      "has_attachments": false
+    }
+  ],
+  "parts": [
+    {
+      "id": 0,
+      "message": 0,
+      "parent": null,
+      "kind": "multipart",
+      "children": [
+        1,
+        2
+      ],
+      "encoding": "none",
+      "flags": [],
+      "roles": [],
+      "role": "container",
+      "offset_header": 0,
+      "offset_body": 149,
+      "offset_end": 616,
+      "headers": [
+        {
+          "name": "From",
+          "value": {
+            "address": [
+              {
+                "mailbox": {
+                  "name": null,
+                  "address": "sender@example.com"
+                }
+              }
+            ]
+          },
+          "offset_field": 0,
+          "offset_start": 5,
+          "offset_end": 25
+        },
+        {
+          "name": "To",
+          "value": {
+            "address": [
+              {
+                "mailbox": {
+                  "name": null,
+                  "address": "recipient@example.com"
+                }
+              }
+            ]
+          },
+          "offset_field": 25,
+          "offset_start": 28,
+          "offset_end": 51
+        },
+        {
+          "name": "Subject",
+          "value": {
+            "text": "Multipart Email Example"
+          },
+          "offset_field": 51,
+          "offset_start": 59,
+          "offset_end": 84
+        },
+        {
+          "name": "Content-Type",
+          "value": {
+            "content_type": {
+              "type": "multipart",
+              "subtype": "alternative",
+              "attributes": [
+                [
+                  "boundary",
+                  "boundary-string"
+                ]
+              ]
+            }
+          },
+          "offset_field": 84,
+          "offset_start": 97,
+          "offset_end": 148
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "message": 0,
+      "parent": 0,
+      "kind": "text",
+      "encoding": "quoted-printable",
+      "flags": [],
+      "roles": [
+        "text_body",
+        "inline"
+      ],
+      "role": "text_body",
+      "offset_header": 167,
+      "offset_body": 282,
+      "offset_end": 369,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": {
+            "content_type": {
+              "type": "text",
+              "subtype": "plain",
+              "attributes": [
+                [
+                  "charset",
+                  "utf-8"
+                ]
+              ]
+            }
+          },
+          "offset_field": 167,
+          "offset_start": 180,
+          "offset_end": 209
+        },
+        {
+          "name": "Content-Transfer-Encoding",
+          "value": {
+            "text": "quoted-printable"
+          },
+          "offset_field": 209,
+          "offset_start": 235,
+          "offset_end": 253
+        },
+        {
+          "name": "Content-Disposition",
+          "value": {
+            "content_type": {
+              "type": "inline",
+              "subtype": null,
+              "attributes": []
+            }
+          },
+          "offset_field": 253,
+          "offset_start": 273,
+          "offset_end": 281
+        }
+      ],
+      "text": "Plain text email goes here!\nThis is the fallback if email client does not support HTML\n",
+      "decode_problems": []
+    },
+    {
+      "id": 2,
+      "message": 0,
+      "parent": 0,
+      "kind": "html",
+      "encoding": "quoted-printable",
+      "flags": [],
+      "roles": [
+        "html_body",
+        "inline"
+      ],
+      "role": "html_body",
+      "offset_header": 388,
+      "offset_body": 502,
+      "offset_end": 595,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": {
+            "content_type": {
+              "type": "text",
+              "subtype": "html",
+              "attributes": [
+                [
+                  "charset",
+                  "utf-8"
+                ]
+              ]
+            }
+          },
+          "offset_field": 388,
+          "offset_start": 401,
+          "offset_end": 429
+        },
+        {
+          "name": "Content-Transfer-Encoding",
+          "value": {
+            "text": "quoted-printable"
+          },
+          "offset_field": 429,
+          "offset_start": 455,
+          "offset_end": 473
+        },
+        {
+          "name": "Content-Disposition",
+          "value": {
+            "content_type": {
+              "type": "inline",
+              "subtype": null,
+              "attributes": []
+            }
+          },
+          "offset_field": 473,
+          "offset_start": 493,
+          "offset_end": 501
+        }
+      ],
+      "text": "<h1>This is the HTML Section!</h1>\n<p>This is what displays in most modern email clients</p>\n",
+      "decode_problems": []
+    }
+  ]
+}

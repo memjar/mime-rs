@@ -1,0 +1,45 @@
+[package]
+name = "mime-rs"
+description = "MIME message parser, validator, editor and builder library"
+version = "0.0.1"
+authors = ["Clément DOUIN (soywod) <pimalaya.org@posteo.net>"]
+rust-version = "1.88"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+categories = ["email", "parser-implementations", "encoding", "no-std"]
+keywords = ["email", "mime", "rfc5322", "parser", "builder"]
+homepage = "https://pimalaya.org"
+documentation = "https://docs.rs/mime-rs/latest/mime"
+repository = "https://github.com/pimalaya/mime"
+exclude = ["/tests/corpus", "/tests/vectors", "/fuzz"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[lib]
+name = "mime"
+
+[features]
+default = ["parser", "base64", "encoding"]
+parser = ["dep:memchr"]
+base64 = ["dep:base64"]
+encoding = ["dep:encoding_rs"]
+
+[dependencies]
+base64 = { version = "0.23", default-features = false, features = ["alloc"], optional = true }
+encoding_rs = { version = "0.8", default-features = false, features = ["alloc"], optional = true }
+memchr = { version = "2", default-features = false, optional = true }
+
+[dev-dependencies]
+criterion = { version = "0.8", default-features = false, features = ["cargo_bench_support"] }
+mail-builder = { version = "1", default-features = false }
+mail-parser = { version = "1", features = ["full_encoding", "serde"] }
+proptest = { version = "1", default-features = false, features = ["std"] }
+serde_json = "1"
+
+[[bench]]
+name = "compare"
+path = "benches/compare.rs"
+harness = false
+required-features = ["parser", "base64", "encoding"]

@@ -1,0 +1,284 @@
+{
+  "messages": [
+    {
+      "id": 0,
+      "root": 0,
+      "container": null,
+      "source": "raw",
+      "text_body": [
+        1
+      ],
+      "html_body": [
+        1
+      ],
+      "attachments": [
+        2
+      ],
+      "has_attachments": false
+    }
+  ],
+  "parts": [
+    {
+      "id": 0,
+      "message": 0,
+      "parent": null,
+      "kind": "multipart",
+      "children": [
+        1,
+        2
+      ],
+      "encoding": "none",
+      "flags": [],
+      "roles": [],
+      "role": "container",
+      "offset_header": 0,
+      "offset_body": 413,
+      "offset_end": 1499,
+      "headers": [
+        {
+          "name": "To",
+          "value": {
+            "address": [
+              {
+                "mailbox": {
+                  "name": null,
+                  "address": "test@example.com"
+                }
+              }
+            ]
+          },
+          "offset_field": 0,
+          "offset_start": 3,
+          "offset_end": 22
+        },
+        {
+          "name": "From",
+          "value": {
+            "address": [
+              {
+                "mailbox": {
+                  "name": null,
+                  "address": "test@example.com"
+                }
+              }
+            ]
+          },
+          "offset_field": 22,
+          "offset_start": 27,
+          "offset_end": 46
+        },
+        {
+          "name": "Subject",
+          "value": {
+            "text": "25 HTML + embedded image"
+          },
+          "offset_field": 46,
+          "offset_start": 54,
+          "offset_end": 81
+        },
+        {
+          "name": "Message-ID",
+          "value": {
+            "text_list": [
+              "c1ddcd5d-71c1-9c9d-1b81-e3b9abb99030@example.com"
+            ]
+          },
+          "offset_field": 81,
+          "offset_start": 92,
+          "offset_end": 145
+        },
+        {
+          "name": "Date",
+          "value": {
+            "date_time": {
+              "year": 2017,
+              "month": 12,
+              "day": 30,
+              "hour": 19,
+              "minute": 26,
+              "second": 23,
+              "tz_before_gmt": false,
+              "tz_hour": 1,
+              "tz_minute": 0
+            }
+          },
+          "offset_field": 145,
+          "offset_start": 150,
+          "offset_end": 184
+        },
+        {
+          "name": "User-Agent",
+          "value": {
+            "text": "Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:59.0) Gecko/20100101\r\n Thunderbird/59.0a1"
+          },
+          "offset_field": 184,
+          "offset_start": 195,
+          "offset_end": 283
+        },
+        {
+          "name": "MIME-Version",
+          "value": {
+            "text": "1.0"
+          },
+          "offset_field": 283,
+          "offset_start": 296,
+          "offset_end": 302
+        },
+        {
+          "name": "Content-Type",
+          "value": {
+            "content_type": {
+              "type": "multipart",
+              "subtype": "related",
+              "attributes": [
+                [
+                  "boundary",
+                  "------------B2BBD36A919AB2B2F84E2469"
+                ]
+              ]
+            }
+          },
+          "offset_field": 302,
+          "offset_start": 315,
+          "offset_end": 386
+        },
+        {
+          "name": "Content-Language",
+          "value": {
+            "text_list": [
+              "en-GB"
+            ]
+          },
+          "offset_field": 386,
+          "offset_start": 403,
+          "offset_end": 411
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "message": 0,
+      "parent": 0,
+      "kind": "html",
+      "encoding": "quoted-printable",
+      "flags": [],
+      "roles": [
+        "text_body",
+        "html_body"
+      ],
+      "role": "html_body",
+      "offset_header": 499,
+      "offset_body": 588,
+      "offset_end": 873,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": {
+            "content_type": {
+              "type": "text",
+              "subtype": "html",
+              "attributes": [
+                [
+                  "charset",
+                  "utf-8"
+                ]
+              ]
+            }
+          },
+          "offset_field": 499,
+          "offset_start": 512,
+          "offset_end": 541
+        },
+        {
+          "name": "Content-Transfer-Encoding",
+          "value": {
+            "text": "quoted-printable"
+          },
+          "offset_field": 541,
+          "offset_start": 567,
+          "offset_end": 586
+        }
+      ],
+      "text": "<html>\r\n  <head>\r\n\r\n    <meta http-equiv=\"content-type\" content=\"text/html; charset=utf-8\">\r\n  </head>\r\n  <body text=\"#000000\" bgcolor=\"#FFFFFF\">\r\n    <p><tt>Search for höhö</tt></p>\r\n    <p><img src=\"cid:part1.8C5E6A81.D0C1B91A@example.com\" alt=\"\"></p>\r\n  </body>\r\n</html>\r\n",
+      "decode_problems": [
+        "malformed_transfer_encoding"
+      ]
+    },
+    {
+      "id": 2,
+      "message": 0,
+      "parent": 0,
+      "kind": "inline_binary",
+      "encoding": "base64",
+      "flags": [],
+      "roles": [
+        "attachment",
+        "inline"
+      ],
+      "role": "attachment",
+      "offset_header": 915,
+      "offset_body": 1123,
+      "offset_end": 1455,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": {
+            "content_type": {
+              "type": "image",
+              "subtype": "png",
+              "attributes": [
+                [
+                  "name",
+                  "kigaaldcbanejcbi.png"
+                ]
+              ]
+            }
+          },
+          "offset_field": 915,
+          "offset_start": 928,
+          "offset_end": 971
+        },
+        {
+          "name": "Content-Transfer-Encoding",
+          "value": {
+            "text": "base64"
+          },
+          "offset_field": 971,
+          "offset_start": 997,
+          "offset_end": 1006
+        },
+        {
+          "name": "Content-ID",
+          "value": {
+            "text_list": [
+              "part1.8C5E6A81.D0C1B91A@example.com"
+            ]
+          },
+          "offset_field": 1006,
+          "offset_start": 1017,
+          "offset_end": 1057
+        },
+        {
+          "name": "Content-Disposition",
+          "value": {
+            "content_type": {
+              "type": "inline",
+              "subtype": null,
+              "attributes": [
+                [
+                  "filename",
+                  "kigaaldcbanejcbi.png"
+                ]
+              ]
+            }
+          },
+          "offset_field": 1057,
+          "offset_start": 1077,
+          "offset_end": 1121
+        }
+      ],
+      "binary": "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAASdEVYdFNvZnR3YXJlAEdyZWVuc2hvdF5VCAUAAABpSURBVDhP3dA7EoAgDEXR7Ew+bgdx/018BEYyiICtb27FcCig3Z7Im6gK3ZxN/RcQkb6aK8DjtuRMzMEAiNGvlFpgtyOdEjFz14xA10wA1pg5wLRZAthtVgEm5vGtA4DhvILaO8A+AuYLy0U5xUUpL8kAAAAASUVORK5CYII=",
+      "decode_problems": []
+    }
+  ]
+}

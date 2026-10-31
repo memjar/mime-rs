@@ -1,0 +1,426 @@
+{
+  "messages": [
+    {
+      "id": 0,
+      "root": 0,
+      "container": null,
+      "source": "raw",
+      "text_body": [
+        1
+      ],
+      "html_body": [
+        3
+      ],
+      "attachments": [
+        4
+      ],
+      "has_attachments": false
+    }
+  ],
+  "parts": [
+    {
+      "id": 0,
+      "message": 0,
+      "parent": null,
+      "kind": "multipart",
+      "children": [
+        1,
+        2
+      ],
+      "encoding": "none",
+      "flags": [],
+      "roles": [],
+      "role": "container",
+      "offset_header": 0,
+      "offset_body": 727,
+      "offset_end": 6206,
+      "headers": [
+        {
+          "name": "Return-Path",
+          "value": {
+            "text_list": [
+              "dummy@xyz-webserver.abcd-gestion.local"
+            ]
+          },
+          "offset_field": 0,
+          "offset_start": 12,
+          "offset_end": 53
+        },
+        {
+          "name": "Delivered-To",
+          "value": {
+            "text": "admin@xyz-webserver.abcd-gestion.local"
+          },
+          "offset_field": 53,
+          "offset_start": 66,
+          "offset_end": 107
+        },
+        {
+          "name": "Received",
+          "value": {
+            "received": {
+              "from": {
+                "ip": "10.1.1.1"
+              },
+              "from_ip": "10.1.1.1",
+              "from_iprev": null,
+              "by": {
+                "name": "xyz-webserver.abcd-gestion.com"
+              },
+              "for": null,
+              "with": "ESMTPA",
+              "tls_version": null,
+              "tls_cipher": null,
+              "id": null,
+              "ident": null,
+              "helo": null,
+              "helo_cmd": null,
+              "via": null,
+              "date": {
+                "year": 2022,
+                "month": 7,
+                "day": 18,
+                "hour": 8,
+                "minute": 19,
+                "second": 52,
+                "tz_before_gmt": true,
+                "tz_hour": 7,
+                "tz_minute": 0
+              }
+            }
+          },
+          "offset_field": 107,
+          "offset_start": 116,
+          "offset_end": 239
+        },
+        {
+          "name": "Content-Type",
+          "value": {
+            "content_type": {
+              "type": "multipart",
+              "subtype": "alternative",
+              "attributes": [
+                [
+                  "boundary",
+                  "------------89rdZlF87ukwoHkrsSI299lb"
+                ]
+              ]
+            }
+          },
+          "offset_field": 239,
+          "offset_start": 252,
+          "offset_end": 327
+        },
+        {
+          "name": "Message-ID",
+          "value": {
+            "text_list": [
+              "ca2236fb-9819-82dd-c501-d3bcf737a768@xyz-webserver.abcd-gestion.local"
+            ]
+          },
+          "offset_field": 327,
+          "offset_start": 338,
+          "offset_end": 412
+        },
+        {
+          "name": "Date",
+          "value": {
+            "date_time": {
+              "year": 2022,
+              "month": 7,
+              "day": 18,
+              "hour": 17,
+              "minute": 19,
+              "second": 52,
+              "tz_before_gmt": false,
+              "tz_hour": 2,
+              "tz_minute": 0
+            }
+          },
+          "offset_field": 412,
+          "offset_start": 417,
+          "offset_end": 451
+        },
+        {
+          "name": "MIME-Version",
+          "value": {
+            "text": "1.0"
+          },
+          "offset_field": 451,
+          "offset_start": 464,
+          "offset_end": 470
+        },
+        {
+          "name": "User-Agent",
+          "value": {
+            "text": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:91.0) Gecko/20100101\r\n Thunderbird/91.11.0"
+          },
+          "offset_field": 470,
+          "offset_start": 481,
+          "offset_end": 571
+        },
+        {
+          "name": "Content-Language",
+          "value": {
+            "text_list": [
+              "fr"
+            ]
+          },
+          "offset_field": 571,
+          "offset_start": 588,
+          "offset_end": 593
+        },
+        {
+          "name": "To",
+          "value": {
+            "address": [
+              {
+                "mailbox": {
+                  "name": "admin xyz",
+                  "address": "admin@xyz-webserver.abcd-gestion.local"
+                }
+              }
+            ]
+          },
+          "offset_field": 593,
+          "offset_start": 596,
+          "offset_end": 649
+        },
+        {
+          "name": "From",
+          "value": {
+            "address": [
+              {
+                "mailbox": {
+                  "name": "Dummy",
+                  "address": "dummy@xyz-webserver.abcd-gestion.local"
+                }
+              }
+            ]
+          },
+          "offset_field": 649,
+          "offset_start": 654,
+          "offset_end": 703
+        },
+        {
+          "name": "Subject",
+          "value": {
+            "text": "small image"
+          },
+          "offset_field": 703,
+          "offset_start": 711,
+          "offset_end": 725
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "message": 0,
+      "parent": 0,
+      "kind": "text",
+      "encoding": "none",
+      "flags": [],
+      "roles": [
+        "text_body"
+      ],
+      "role": "text_body",
+      "offset_header": 813,
+      "offset_body": 904,
+      "offset_end": 904,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": {
+            "content_type": {
+              "type": "text",
+              "subtype": "plain",
+              "attributes": [
+                [
+                  "charset",
+                  "UTF-8"
+                ],
+                [
+                  "format",
+                  "flowed"
+                ]
+              ]
+            }
+          },
+          "offset_field": 813,
+          "offset_start": 826,
+          "offset_end": 869
+        },
+        {
+          "name": "Content-Transfer-Encoding",
+          "value": {
+            "text": "7bit"
+          },
+          "offset_field": 869,
+          "offset_start": 895,
+          "offset_end": 902
+        }
+      ],
+      "text": "",
+      "decode_problems": []
+    },
+    {
+      "id": 2,
+      "message": 0,
+      "parent": 0,
+      "kind": "multipart",
+      "children": [
+        3,
+        4
+      ],
+      "encoding": "none",
+      "flags": [],
+      "roles": [],
+      "role": "container",
+      "offset_header": 944,
+      "offset_body": 1030,
+      "offset_end": 6164,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": {
+            "content_type": {
+              "type": "multipart",
+              "subtype": "related",
+              "attributes": [
+                [
+                  "boundary",
+                  "------------NiQaqvKcGeCafTrVNpipUb0K"
+                ]
+              ]
+            }
+          },
+          "offset_field": 944,
+          "offset_start": 957,
+          "offset_end": 1028
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "message": 0,
+      "parent": 2,
+      "kind": "html",
+      "encoding": "none",
+      "flags": [],
+      "roles": [
+        "html_body"
+      ],
+      "role": "html_body",
+      "offset_header": 1070,
+      "offset_body": 1145,
+      "offset_end": 1387,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": {
+            "content_type": {
+              "type": "text",
+              "subtype": "html",
+              "attributes": [
+                [
+                  "charset",
+                  "UTF-8"
+                ]
+              ]
+            }
+          },
+          "offset_field": 1070,
+          "offset_start": 1083,
+          "offset_end": 1110
+        },
+        {
+          "name": "Content-Transfer-Encoding",
+          "value": {
+            "text": "7bit"
+          },
+          "offset_field": 1110,
+          "offset_start": 1136,
+          "offset_end": 1143
+        }
+      ],
+      "text": "<html>\r\n  <head>\r\n\r\n    <meta http-equiv=\"content-type\" content=\"text/html; charset=UTF-8\">\r\n  </head>\r\n  <body>\r\n    <p><img\r\n        src=\"cid:part1.9UVUk3pv.Sy4hPOBH@xyz-webserver.abcd-gestion.local\"\r\n        alt=\"\"></p>\r\n  </body>\r\n</html>",
+      "decode_problems": []
+    },
+    {
+      "id": 4,
+      "message": 0,
+      "parent": 2,
+      "kind": "inline_binary",
+      "encoding": "base64",
+      "flags": [],
+      "roles": [
+        "attachment",
+        "inline"
+      ],
+      "role": "attachment",
+      "offset_header": 1429,
+      "offset_body": 1654,
+      "offset_end": 6120,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": {
+            "content_type": {
+              "type": "image",
+              "subtype": "png",
+              "attributes": [
+                [
+                  "name",
+                  "01H5HSCoUeEcg6CH.png"
+                ]
+              ]
+            }
+          },
+          "offset_field": 1429,
+          "offset_start": 1442,
+          "offset_end": 1483
+        },
+        {
+          "name": "Content-Disposition",
+          "value": {
+            "content_type": {
+              "type": "inline",
+              "subtype": null,
+              "attributes": [
+                [
+                  "filename",
+                  "01H5HSCoUeEcg6CH.png"
+                ]
+              ]
+            }
+          },
+          "offset_field": 1483,
+          "offset_start": 1503,
+          "offset_end": 1545
+        },
+        {
+          "name": "Content-Id",
+          "value": {
+            "text_list": [
+              "part1.9UVUk3pv.Sy4hPOBH@xyz-webserver.abcd-gestion.local"
+            ]
+          },
+          "offset_field": 1545,
+          "offset_start": 1556,
+          "offset_end": 1617
+        },
+        {
+          "name": "Content-Transfer-Encoding",
+          "value": {
+            "text": "base64"
+          },
+          "offset_field": 1617,
+          "offset_start": 1643,
+          "offset_end": 1652
+        }
+      ],
+      "binary": "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",
+      "decode_problems": []
+    }
+  ]
+}

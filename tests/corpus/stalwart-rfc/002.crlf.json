@@ -1,0 +1,534 @@
+{
+  "messages": [
+    {
+      "id": 0,
+      "root": 0,
+      "container": null,
+      "source": "raw",
+      "text_body": [
+        1
+      ],
+      "html_body": [
+        1
+      ],
+      "attachments": [
+        2
+      ],
+      "has_attachments": false
+    },
+    {
+      "id": 1,
+      "root": 3,
+      "container": 2,
+      "source": "raw",
+      "text_body": [
+        4,
+        5
+      ],
+      "html_body": [
+        4,
+        5
+      ],
+      "attachments": [],
+      "has_attachments": false
+    }
+  ],
+  "parts": [
+    {
+      "id": 0,
+      "message": 0,
+      "parent": null,
+      "kind": "multipart",
+      "children": [
+        1,
+        2
+      ],
+      "encoding": "none",
+      "flags": [],
+      "roles": [],
+      "role": "container",
+      "offset_header": 0,
+      "offset_body": 277,
+      "offset_end": 2723,
+      "headers": [
+        {
+          "name": "From",
+          "value": {
+            "address": [
+              {
+                "mailbox": {
+                  "name": "Al Gore",
+                  "address": "vice-president@whitehouse.gov"
+                }
+              }
+            ]
+          },
+          "offset_field": 0,
+          "offset_start": 5,
+          "offset_end": 48
+        },
+        {
+          "name": "To",
+          "value": {
+            "address": [
+              {
+                "mailbox": {
+                  "name": "White House Transportation Coordinator",
+                  "address": "transport@whitehouse.gov"
+                }
+              }
+            ]
+          },
+          "offset_field": 48,
+          "offset_start": 51,
+          "offset_end": 126
+        },
+        {
+          "name": "Subject",
+          "value": {
+            "text": "[Fwd: Map of Argentina with Description]"
+          },
+          "offset_field": 126,
+          "offset_start": 134,
+          "offset_end": 177
+        },
+        {
+          "name": "Content-Type",
+          "value": {
+            "content_type": {
+              "type": "multipart",
+              "subtype": "mixed",
+              "attributes": [
+                [
+                  "boundary",
+                  "D7F------------D7FD5A0B8AB9C65CCDBFA872"
+                ]
+              ]
+            }
+          },
+          "offset_field": 177,
+          "offset_start": 190,
+          "offset_end": 275
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "message": 0,
+      "parent": 0,
+      "kind": "text",
+      "encoding": "none",
+      "flags": [],
+      "roles": [
+        "text_body",
+        "html_body"
+      ],
+      "role": "text_body",
+      "offset_header": 366,
+      "offset_body": 445,
+      "offset_end": 511,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": {
+            "content_type": {
+              "type": "text",
+              "subtype": "plain",
+              "attributes": [
+                [
+                  "charset",
+                  "us-ascii"
+                ]
+              ]
+            }
+          },
+          "offset_field": 366,
+          "offset_start": 379,
+          "offset_end": 410
+        },
+        {
+          "name": "Content-Transfer-Encoding",
+          "value": {
+            "text": "7bit"
+          },
+          "offset_field": 410,
+          "offset_start": 436,
+          "offset_end": 443
+        }
+      ],
+      "text": "Fred,\r\n\r\nFire up Air Force One!  We're going South!\r\n\r\nThanks,\r\nAl",
+      "decode_problems": []
+    },
+    {
+      "id": 2,
+      "message": 0,
+      "parent": 0,
+      "kind": "message",
+      "nested": 1,
+      "encoding": "none",
+      "flags": [],
+      "roles": [
+        "attachment",
+        "inline"
+      ],
+      "role": "attachment",
+      "offset_header": 556,
+      "offset_body": 650,
+      "offset_end": 2676,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": {
+            "content_type": {
+              "type": "message",
+              "subtype": "rfc822",
+              "attributes": []
+            }
+          },
+          "offset_field": 556,
+          "offset_start": 569,
+          "offset_end": 586
+        },
+        {
+          "name": "Content-Transfer-Encoding",
+          "value": {
+            "text": "7bit"
+          },
+          "offset_field": 586,
+          "offset_start": 612,
+          "offset_end": 619
+        },
+        {
+          "name": "Content-Disposition",
+          "value": {
+            "content_type": {
+              "type": "inline",
+              "subtype": null,
+              "attributes": []
+            }
+          },
+          "offset_field": 619,
+          "offset_start": 639,
+          "offset_end": 648
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "message": 1,
+      "parent": null,
+      "kind": "multipart",
+      "children": [
+        4,
+        5
+      ],
+      "encoding": "none",
+      "flags": [],
+      "roles": [],
+      "role": "container",
+      "offset_header": 650,
+      "offset_body": 1502,
+      "offset_end": 2676,
+      "headers": [
+        {
+          "name": "Return-Path",
+          "value": {
+            "text_list": [
+              "president@whitehouse.gov"
+            ]
+          },
+          "offset_field": 650,
+          "offset_start": 662,
+          "offset_end": 691
+        },
+        {
+          "name": "Received",
+          "value": {
+            "received": {
+              "from": {
+                "name": "mailhost.whitehouse.gov"
+              },
+              "from_ip": "192.168.51.200",
+              "from_iprev": null,
+              "by": {
+                "name": "heartbeat.whitehouse.gov"
+              },
+              "for": "vice-president@heartbeat.whitehouse.gov",
+              "with": "ESMTP",
+              "tls_version": null,
+              "tls_cipher": null,
+              "id": "SAA22453",
+              "ident": null,
+              "helo": null,
+              "helo_cmd": null,
+              "via": null,
+              "date": {
+                "year": 1998,
+                "month": 8,
+                "day": 13,
+                "hour": 14,
+                "minute": 23,
+                "second": 232,
+                "tz_before_gmt": true,
+                "tz_hour": 0,
+                "tz_minute": 0
+              }
+            }
+          },
+          "offset_field": 691,
+          "offset_start": 700,
+          "offset_end": 921
+        },
+        {
+          "name": "Received",
+          "value": {
+            "received": {
+              "from": {
+                "name": "the_big_box.whitehouse.gov"
+              },
+              "from_ip": "192.168.51.50",
+              "from_iprev": null,
+              "by": {
+                "name": "mailhost.whitehouse.gov"
+              },
+              "for": "vice-president@whitehouse.gov",
+              "with": "ESMTP",
+              "tls_version": null,
+              "tls_cipher": null,
+              "id": "RAA20366",
+              "ident": null,
+              "helo": null,
+              "helo_cmd": null,
+              "via": null,
+              "date": {
+                "year": 1998,
+                "month": 8,
+                "day": 13,
+                "hour": 17,
+                "minute": 42,
+                "second": 41,
+                "tz_before_gmt": false,
+                "tz_hour": 10,
+                "tz_minute": 0
+              }
+            }
+          },
+          "offset_field": 921,
+          "offset_start": 930,
+          "offset_end": 1131
+        },
+        {
+          "name": "Date",
+          "value": {
+            "date_time": {
+              "year": 1998,
+              "month": 8,
+              "day": 13,
+              "hour": 17,
+              "minute": 42,
+              "second": 41,
+              "tz_before_gmt": false,
+              "tz_hour": 10,
+              "tz_minute": 0
+            }
+          },
+          "offset_field": 1131,
+          "offset_start": 1136,
+          "offset_end": 1170
+        },
+        {
+          "name": "Message-Id",
+          "value": {
+            "text_list": [
+              "199804130742.RAA20366@mai1host.whitehouse.gov"
+            ]
+          },
+          "offset_field": 1170,
+          "offset_start": 1181,
+          "offset_end": 1231
+        },
+        {
+          "name": "From",
+          "value": {
+            "address": [
+              {
+                "mailbox": {
+                  "name": "Bill Clinton",
+                  "address": "president@whitehouse.gov"
+                }
+              }
+            ]
+          },
+          "offset_field": 1231,
+          "offset_start": 1236,
+          "offset_end": 1278
+        },
+        {
+          "name": "To",
+          "value": {
+            "address": [
+              {
+                "mailbox": {
+                  "name": "A1 Gore (The Enforcer)",
+                  "address": "vice-president@whitehouse.gov"
+                }
+              }
+            ]
+          },
+          "offset_field": 1278,
+          "offset_start": 1281,
+          "offset_end": 1338
+        },
+        {
+          "name": "Subject",
+          "value": {
+            "text": "Map of Argentina with Description"
+          },
+          "offset_field": 1338,
+          "offset_start": 1346,
+          "offset_end": 1383
+        },
+        {
+          "name": "MIME-Version",
+          "value": {
+            "text": "1.0"
+          },
+          "offset_field": 1383,
+          "offset_start": 1396,
+          "offset_end": 1402
+        },
+        {
+          "name": "Content-Type",
+          "value": {
+            "content_type": {
+              "type": "multipart",
+              "subtype": "mixed",
+              "attributes": [
+                [
+                  "boundary",
+                  "DC8------------DC8638F443D87A7F0726DEF7"
+                ]
+              ]
+            }
+          },
+          "offset_field": 1402,
+          "offset_start": 1415,
+          "offset_end": 1500
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "message": 1,
+      "parent": 3,
+      "kind": "text",
+      "encoding": "none",
+      "flags": [],
+      "roles": [
+        "text_body",
+        "html_body"
+      ],
+      "role": "text_body",
+      "offset_header": 1591,
+      "offset_body": 1670,
+      "offset_end": 2037,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": {
+            "content_type": {
+              "type": "text",
+              "subtype": "plain",
+              "attributes": [
+                [
+                  "charset",
+                  "us-ascii"
+                ]
+              ]
+            }
+          },
+          "offset_field": 1591,
+          "offset_start": 1604,
+          "offset_end": 1635
+        },
+        {
+          "name": "Content-Transfer-Encoding",
+          "value": {
+            "text": "7bit"
+          },
+          "offset_field": 1635,
+          "offset_start": 1661,
+          "offset_end": 1668
+        }
+      ],
+      "text": "Hi A1,\r\n\r\nI finally figured out this MIME thing.  Pretty cool.  I'll send you\r\nsome sax music in .au files next week!\r\n\r\nAnyway, the attached image is really too small to get a good look at\r\nArgentina.  Try this for a much better map:\r\n\r\n     http://www.1one1yp1anet.com/dest/sam/graphics/map-arg.htm\r\n\r\nThen again, shouldn't the CIA have something like that?\r\n\r\nBill",
+      "decode_problems": []
+    },
+    {
+      "id": 5,
+      "message": 1,
+      "parent": 3,
+      "kind": "inline_binary",
+      "encoding": "base64",
+      "flags": [],
+      "roles": [
+        "text_body",
+        "html_body",
+        "inline"
+      ],
+      "role": "media_body",
+      "offset_header": 2082,
+      "offset_body": 2235,
+      "offset_end": 2629,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": {
+            "content_type": {
+              "type": "image",
+              "subtype": "gif",
+              "attributes": [
+                [
+                  "name",
+                  "map_of_Argentina.gif"
+                ]
+              ]
+            }
+          },
+          "offset_field": 2082,
+          "offset_start": 2095,
+          "offset_end": 2136
+        },
+        {
+          "name": "Content-Transfer-Encoding",
+          "value": {
+            "text": "base64"
+          },
+          "offset_field": 2136,
+          "offset_start": 2162,
+          "offset_end": 2171
+        },
+        {
+          "name": "Content-Disposition",
+          "value": {
+            "content_type": {
+              "type": "inline",
+              "subtype": null,
+              "attributes": [
+                [
+                  "fi1ename",
+                  "map_of_Argentina.gif"
+                ]
+              ]
+            }
+          },
+          "offset_field": 2171,
+          "offset_start": 2191,
+          "offset_end": 2233
+        }
+      ],
+      "binary": "R01GOD1hJQA1AKIAAP/////78P/omn19fQAAAAAAAAAAAAAAACwAAAAAJQA1AAAD7Qi63P5wwEmjBCLrnQnhYCgM1wh+pkgqqeC9XrutmBm7hAK3tP31gFcAiFKVQrGFR6kscnonTe7FAAadGugmRu3CmiBt57fsVq3Y0VFKnpYdxPC6M7Ze4crnnHum4oN6LFJ1bn5NXTN7OF5fQkN5WYowBEN2dkGQGWJtSzqGTICJgnQuTJN/WJsojad9qXMuhIWdjXKjY4tenjo6tjVssk2gaWq3uGNXU6ZGxseyk8SasGw3J9GRzdTQky1iHNvcPNNI4TLeKdfMvy0vMqLrItvuxfDW8ubjueDtJufz7itICBxISKDBgwgTKjyYAAA7",
+      "decode_problems": []
+    }
+  ]
+}

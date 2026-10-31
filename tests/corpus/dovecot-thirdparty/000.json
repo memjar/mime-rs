@@ -1,0 +1,152 @@
+{
+  "messages": [
+    {
+      "id": 0,
+      "root": 0,
+      "container": null,
+      "source": "raw",
+      "text_body": [
+        1,
+        2
+      ],
+      "html_body": [
+        1,
+        2
+      ],
+      "attachments": [],
+      "has_attachments": false
+    }
+  ],
+  "parts": [
+    {
+      "id": 0,
+      "message": 0,
+      "parent": null,
+      "kind": "multipart",
+      "children": [
+        1,
+        2
+      ],
+      "encoding": "none",
+      "flags": [],
+      "roles": [],
+      "role": "container",
+      "offset_header": 0,
+      "offset_body": 74,
+      "offset_end": 461,
+      "headers": [
+        {
+          "name": "MIME-Version",
+          "value": {
+            "text": "1.0"
+          },
+          "offset_field": 0,
+          "offset_start": 13,
+          "offset_end": 18
+        },
+        {
+          "name": "Content-Type",
+          "value": {
+            "content_type": {
+              "type": "multipart",
+              "subtype": "alternative",
+              "attributes": [
+                [
+                  "boundary",
+                  "bound"
+                ]
+              ]
+            }
+          },
+          "offset_field": 18,
+          "offset_start": 31,
+          "offset_end": 73
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "message": 0,
+      "parent": 0,
+      "kind": "text",
+      "encoding": "base64",
+      "flags": [],
+      "roles": [
+        "text_body",
+        "html_body"
+      ],
+      "role": "copied_body",
+      "offset_header": 95,
+      "offset_body": 155,
+      "offset_end": 377,
+      "headers": [
+        {
+          "name": "Content-Transfer-Encoding",
+          "value": {
+            "text": "base64"
+          },
+          "offset_field": 95,
+          "offset_start": 121,
+          "offset_end": 129
+        },
+        {
+          "name": "Content-Type",
+          "value": {
+            "content_type": {
+              "type": "text",
+              "subtype": "plain",
+              "attributes": []
+            }
+          },
+          "offset_field": 129,
+          "offset_start": 142,
+          "offset_end": 154
+        }
+      ],
+      "text": "we have\ra lot \nof \u0000binary stuff in here\nb adjig sadjg jasidgjiaehga3wht8a3w8ghxjc dsgad hasdghsd gasd dsjdsoga sjdga0w3tjhawjgsertniq3n5oqerjqw2r89q23h awhrqh835r8a",
+      "decode_problems": []
+    },
+    {
+      "id": 2,
+      "message": 0,
+      "parent": 0,
+      "kind": "text",
+      "encoding": "base64",
+      "flags": [],
+      "roles": [
+        "text_body",
+        "html_body"
+      ],
+      "role": "copied_body",
+      "offset_header": 386,
+      "offset_body": 446,
+      "offset_end": 450,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": {
+            "content_type": {
+              "type": "text",
+              "subtype": "plain",
+              "attributes": []
+            }
+          },
+          "offset_field": 386,
+          "offset_start": 399,
+          "offset_end": 411
+        },
+        {
+          "name": "Content-Transfer-Encoding",
+          "value": {
+            "text": "base64"
+          },
+          "offset_field": 411,
+          "offset_start": 437,
+          "offset_end": 445
+        }
+      ],
+      "text": "eh",
+      "decode_problems": []
+    }
+  ]
+}

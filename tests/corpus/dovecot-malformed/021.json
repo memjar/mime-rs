@@ -1,0 +1,250 @@
+{
+  "messages": [
+    {
+      "id": 0,
+      "root": 0,
+      "container": null,
+      "source": "raw",
+      "text_body": [
+        1
+      ],
+      "html_body": [
+        1
+      ],
+      "attachments": [
+        2
+      ],
+      "has_attachments": true
+    }
+  ],
+  "parts": [
+    {
+      "id": 0,
+      "message": 0,
+      "parent": null,
+      "kind": "multipart",
+      "children": [
+        1,
+        2
+      ],
+      "encoding": "none",
+      "flags": [],
+      "roles": [],
+      "role": "container",
+      "offset_header": 0,
+      "offset_body": 221,
+      "offset_end": 1038,
+      "headers": [
+        {
+          "name": "From",
+          "value": {
+            "address": [
+              {
+                "mailbox": {
+                  "name": "test",
+                  "address": "test@example.com"
+                }
+              }
+            ]
+          },
+          "offset_field": 0,
+          "offset_start": 5,
+          "offset_end": 30
+        },
+        {
+          "name": "Subject",
+          "value": {
+            "text": "test multipart, related first"
+          },
+          "offset_field": 30,
+          "offset_start": 38,
+          "offset_end": 69
+        },
+        {
+          "name": "To",
+          "value": {
+            "address": [
+              {
+                "mailbox": {
+                  "name": "test2",
+                  "address": "test2@example.com"
+                }
+              }
+            ]
+          },
+          "offset_field": 69,
+          "offset_start": 72,
+          "offset_end": 99
+        },
+        {
+          "name": "Date",
+          "value": {
+            "date_time": {
+              "year": 2016,
+              "month": 2,
+              "day": 27,
+              "hour": 17,
+              "minute": 11,
+              "second": 45,
+              "tz_before_gmt": false,
+              "tz_hour": 1,
+              "tz_minute": 0
+            }
+          },
+          "offset_field": 99,
+          "offset_start": 104,
+          "offset_end": 137
+        },
+        {
+          "name": "MIME-Version",
+          "value": {
+            "text": "1.0"
+          },
+          "offset_field": 137,
+          "offset_start": 150,
+          "offset_end": 155
+        },
+        {
+          "name": "Content-Type",
+          "value": {
+            "content_type": {
+              "type": "multipart",
+              "subtype": "related",
+              "attributes": [
+                [
+                  "boundary",
+                  "------------related"
+                ]
+              ]
+            }
+          },
+          "offset_field": 155,
+          "offset_start": 168,
+          "offset_end": 220
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "message": 0,
+      "parent": 0,
+      "kind": "text",
+      "encoding": "none",
+      "flags": [],
+      "roles": [
+        "text_body",
+        "html_body"
+      ],
+      "role": "text_body",
+      "offset_header": 243,
+      "offset_body": 404,
+      "offset_end": 809,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": {
+            "content_type": {
+              "type": "multipart",
+              "subtype": "alternative",
+              "attributes": [
+                [
+                  "boundary",
+                  "------------alternative"
+                ]
+              ]
+            }
+          },
+          "offset_field": 243,
+          "offset_start": 256,
+          "offset_end": 316
+        },
+        {
+          "name": "Content-Type",
+          "value": {
+            "content_type": {
+              "type": "text",
+              "subtype": "plain",
+              "attributes": [
+                [
+                  "charset",
+                  "UTF-8"
+                ],
+                [
+                  "format",
+                  "flowed"
+                ]
+              ]
+            }
+          },
+          "offset_field": 316,
+          "offset_start": 329,
+          "offset_end": 371
+        },
+        {
+          "name": "Content-Transfer-Encoding",
+          "value": {
+            "text": "8bit"
+          },
+          "offset_field": 371,
+          "offset_start": 397,
+          "offset_end": 403
+        }
+      ],
+      "text": "áóúäöüß\n\n--------------alternative\nContent-Type: text/html; charset=UTF-8\nContent-Transfer-Encoding: 8bit\n\n  <!-- This also needs to work when there is no html tag -->\n  <head>\n    <meta content=\"text/html; charset=UTF-8\" http-equiv=\"Content-Type\">\n  </head>\n  <body bgcolor=\"#FFFFFF\" text=\"#000000\">\n    áóúäöüß<br>\n    <img src=\"cid:part1\" alt=\"\"><br>\n  </body>\n\n--------------alternative\n",
+      "decode_problems": []
+    },
+    {
+      "id": 2,
+      "message": 0,
+      "parent": 0,
+      "kind": "inline_binary",
+      "encoding": "base64",
+      "flags": [],
+      "roles": [
+        "attachment",
+        "inline"
+      ],
+      "role": "attachment",
+      "offset_header": 832,
+      "offset_body": 911,
+      "offset_end": 1013,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": {
+            "content_type": {
+              "type": "image",
+              "subtype": "png",
+              "attributes": []
+            }
+          },
+          "offset_field": 832,
+          "offset_start": 845,
+          "offset_end": 856
+        },
+        {
+          "name": "Content-Transfer-Encoding",
+          "value": {
+            "text": "base64"
+          },
+          "offset_field": 856,
+          "offset_start": 882,
+          "offset_end": 890
+        },
+        {
+          "name": "Content-ID",
+          "value": {
+            "text_list": [
+              "part1"
+            ]
+          },
+          "offset_field": 890,
+          "offset_start": 901,
+          "offset_end": 910
+        }
+      ],
+      "binary": "iVBORw0KGgoAAAANSUhEUgAAAAYAAAALCAIAAADTMGvBAAAAEUlEQVQImWPgsi5DQwxDWggAlCEwN+YGfiYAAAAASUVORK5CYII=",
+      "decode_problems": []
+    }
+  ]
+}

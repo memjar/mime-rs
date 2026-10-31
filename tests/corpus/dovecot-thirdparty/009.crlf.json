@@ -1,0 +1,164 @@
+{
+  "messages": [
+    {
+      "id": 0,
+      "root": 0,
+      "container": null,
+      "source": "raw",
+      "text_body": [
+        1
+      ],
+      "html_body": [
+        1
+      ],
+      "attachments": [
+        2
+      ],
+      "has_attachments": true
+    }
+  ],
+  "parts": [
+    {
+      "id": 0,
+      "message": 0,
+      "parent": null,
+      "kind": "multipart",
+      "children": [
+        1,
+        2
+      ],
+      "encoding": "none",
+      "flags": [],
+      "roles": [],
+      "role": "container",
+      "offset_header": 0,
+      "offset_body": 83,
+      "offset_end": 542,
+      "headers": [
+        {
+          "name": "Subject",
+          "value": {
+            "text": "In parts"
+          },
+          "offset_field": 0,
+          "offset_start": 8,
+          "offset_end": 19
+        },
+        {
+          "name": "MIME-Version",
+          "value": {
+            "text": "1.0"
+          },
+          "offset_field": 19,
+          "offset_start": 32,
+          "offset_end": 38
+        },
+        {
+          "name": "Content-Type",
+          "value": {
+            "content_type": {
+              "type": "multipart",
+              "subtype": "mixed",
+              "attributes": [
+                [
+                  "boundary",
+                  "1"
+                ]
+              ]
+            }
+          },
+          "offset_field": 38,
+          "offset_start": 51,
+          "offset_end": 81
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "message": 0,
+      "parent": 0,
+      "kind": "text",
+      "encoding": "none",
+      "flags": [],
+      "roles": [
+        "text_body",
+        "html_body"
+      ],
+      "role": "text_body",
+      "offset_header": 88,
+      "offset_body": 151,
+      "offset_end": 199,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": {
+            "content_type": {
+              "type": "text",
+              "subtype": "plain",
+              "attributes": []
+            }
+          },
+          "offset_field": 88,
+          "offset_start": 101,
+          "offset_end": 114
+        },
+        {
+          "name": "Content-Transfer-Encoding",
+          "value": {
+            "text": "binary"
+          },
+          "offset_field": 114,
+          "offset_start": 140,
+          "offset_end": 149
+        }
+      ],
+      "text": "Hi, this is the fancy thing I was talking about!",
+      "decode_problems": []
+    },
+    {
+      "id": 2,
+      "message": 0,
+      "parent": 0,
+      "kind": "binary",
+      "encoding": "none",
+      "flags": [],
+      "roles": [
+        "attachment"
+      ],
+      "role": "attachment",
+      "offset_header": 206,
+      "offset_body": 286,
+      "offset_end": 533,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": {
+            "content_type": {
+              "type": "message",
+              "subtype": "partial",
+              "attributes": [
+                [
+                  "number",
+                  "1"
+                ],
+                [
+                  "total",
+                  "5"
+                ],
+                [
+                  "id",
+                  "heks68ewe@example.org"
+                ]
+              ]
+            }
+          },
+          "offset_field": 206,
+          "offset_start": 219,
+          "offset_end": 284
+        }
+      ],
+      "binary": "WC1XZWlyZC1IZWFkZXItMTogQmFyDQpYLVdlaXJkLUhlYWRlci0yOiBIZWxsbw0KTWVzc2FnZS1JRDogPGM2Y2NlZWJjLTFkY2YtMTFlYi1iZThjLWY3Y2ExMzJjYmZlYUBleGFtcGxlLm9yZz4NCkNvbnRlbnQtVHlwZTogdGV4dC9wbGFpbjsgY2hhcnNldD0idXMtYXNjaWkiDQpDb250ZW50LVRyYW5zZmVyLUVuY29kaW5nOiBiYXNlNjQNCg0KZEdocGN5QnBjeUIwYUdVZ1ptbHljM1FnY0dGeWRDQnZaaUIwYUdVZ2JXVnpjMkZuWlFvPQ==",
+      "decode_problems": []
+    }
+  ]
+}

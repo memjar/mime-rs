@@ -1,0 +1,188 @@
+{
+  "messages": [
+    {
+      "id": 0,
+      "root": 0,
+      "container": null,
+      "source": "raw",
+      "text_body": [
+        1,
+        2,
+        3
+      ],
+      "html_body": [
+        1,
+        2,
+        3
+      ],
+      "attachments": [],
+      "has_attachments": false
+    }
+  ],
+  "parts": [
+    {
+      "id": 0,
+      "message": 0,
+      "parent": null,
+      "kind": "multipart",
+      "children": [
+        1,
+        2,
+        3
+      ],
+      "encoding": "none",
+      "flags": [],
+      "roles": [],
+      "role": "container",
+      "offset_header": 0,
+      "offset_body": 78,
+      "offset_end": 532,
+      "headers": [
+        {
+          "name": "MIME-Version",
+          "value": {
+            "text": "1.0"
+          },
+          "offset_field": 0,
+          "offset_start": 13,
+          "offset_end": 19
+        },
+        {
+          "name": "Content-Type",
+          "value": {
+            "content_type": {
+              "type": "multipart",
+              "subtype": "alternative",
+              "attributes": [
+                [
+                  "boundary",
+                  "bound"
+                ]
+              ]
+            }
+          },
+          "offset_field": 19,
+          "offset_start": 32,
+          "offset_end": 76
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "message": 0,
+      "parent": 0,
+      "kind": "text",
+      "encoding": "none",
+      "flags": [],
+      "roles": [
+        "text_body",
+        "html_body"
+      ],
+      "role": "copied_body",
+      "offset_header": 102,
+      "offset_body": 165,
+      "offset_end": 389,
+      "headers": [
+        {
+          "name": "Content-Transfer-Encoding",
+          "value": {
+            "text": "binary"
+          },
+          "offset_field": 102,
+          "offset_start": 128,
+          "offset_end": 137
+        },
+        {
+          "name": "Content-Type",
+          "value": {
+            "content_type": {
+              "type": "text",
+              "subtype": "plain",
+              "attributes": []
+            }
+          },
+          "offset_field": 137,
+          "offset_start": 150,
+          "offset_end": 163
+        }
+      ],
+      "text": "d2UgaGF2ZQ1hIGxvdCAKb2YgAGJpbmFyeSBzdHVmZiBpbiBoZXJlCmIgYWRqaWcgc2FkamcgamFz\r\naWRnamlhZWhnYTN3aHQ4YTN3OGdoeGpjIGRzZ2FkIGhhc2RnaHNkIGdhc2QgZHNqZHNvZ2Egc2pk\r\nZ2EwdzN0amhhd2pnc2VydG5pcTNuNW9xZXJqcXcycjg5cTIzaCBhd2hycWg4MzVyOGE=",
+      "decode_problems": []
+    },
+    {
+      "id": 2,
+      "message": 0,
+      "parent": 0,
+      "kind": "text",
+      "encoding": "none",
+      "flags": [],
+      "roles": [
+        "text_body",
+        "html_body"
+      ],
+      "role": "copied_body",
+      "offset_header": 400,
+      "offset_body": 463,
+      "offset_end": 467,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": {
+            "content_type": {
+              "type": "text",
+              "subtype": "plain",
+              "attributes": []
+            }
+          },
+          "offset_field": 400,
+          "offset_start": 413,
+          "offset_end": 426
+        },
+        {
+          "name": "Content-Transfer-Encoding",
+          "value": {
+            "text": "binary"
+          },
+          "offset_field": 426,
+          "offset_start": 452,
+          "offset_end": 461
+        }
+      ],
+      "text": "ZWg=",
+      "decode_problems": []
+    },
+    {
+      "id": 3,
+      "message": 0,
+      "parent": 0,
+      "kind": "text",
+      "encoding": "none",
+      "flags": [],
+      "roles": [
+        "text_body",
+        "html_body"
+      ],
+      "role": "copied_body",
+      "offset_header": 478,
+      "offset_body": 506,
+      "offset_end": 519,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": {
+            "content_type": {
+              "type": "text",
+              "subtype": "plain",
+              "attributes": []
+            }
+          },
+          "offset_field": 478,
+          "offset_start": 491,
+          "offset_end": 504
+        }
+      ],
+      "text": "hello world\r\n",
+      "decode_problems": []
+    }
+  ]
+}

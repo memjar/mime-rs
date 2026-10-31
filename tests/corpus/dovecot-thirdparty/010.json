@@ -1,0 +1,131 @@
+{
+  "messages": [
+    {
+      "id": 0,
+      "root": 0,
+      "container": null,
+      "source": "raw",
+      "text_body": [
+        1
+      ],
+      "html_body": [
+        1
+      ],
+      "attachments": [],
+      "has_attachments": false
+    }
+  ],
+  "parts": [
+    {
+      "id": 0,
+      "message": 0,
+      "parent": null,
+      "kind": "multipart",
+      "children": [
+        1
+      ],
+      "encoding": "none",
+      "flags": [],
+      "roles": [],
+      "role": "container",
+      "offset_header": 0,
+      "offset_body": 146,
+      "offset_end": 255,
+      "headers": [
+        {
+          "name": "Subject",
+          "value": {
+            "text": "こんにちは"
+          },
+          "offset_field": 0,
+          "offset_start": 8,
+          "offset_end": 42
+        },
+        {
+          "name": "MIME-Version",
+          "value": {
+            "text": "1.0"
+          },
+          "offset_field": 42,
+          "offset_start": 55,
+          "offset_end": 60
+        },
+        {
+          "name": "Content-Type",
+          "value": {
+            "content_type": {
+              "type": "multipart",
+              "subtype": "mixed",
+              "attributes": [
+                [
+                  "boundary",
+                  "1"
+                ],
+                [
+                  "comment",
+                  "人権の無視及"
+                ]
+              ]
+            }
+          },
+          "offset_field": 60,
+          "offset_start": 73,
+          "offset_end": 145
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "message": 0,
+      "parent": 0,
+      "kind": "text",
+      "encoding": "none",
+      "flags": [],
+      "roles": [
+        "text_body",
+        "html_body"
+      ],
+      "role": "text_body",
+      "offset_header": 150,
+      "offset_body": 231,
+      "offset_end": 249,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": {
+            "content_type": {
+              "type": "text",
+              "subtype": "plain",
+              "attributes": []
+            }
+          },
+          "offset_field": 150,
+          "offset_start": 163,
+          "offset_end": 175
+        },
+        {
+          "name": "Content-Transfer-Encoding",
+          "value": {
+            "text": "binary"
+          },
+          "offset_field": 175,
+          "offset_start": 201,
+          "offset_end": 209
+        },
+        {
+          "name": "Content-Language",
+          "value": {
+            "text_list": [
+              "ja"
+            ]
+          },
+          "offset_field": 209,
+          "offset_start": 226,
+          "offset_end": 230
+        }
+      ],
+      "text": "人権の無視及",
+      "decode_problems": []
+    }
+  ]
+}
