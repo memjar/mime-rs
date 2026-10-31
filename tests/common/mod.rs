@@ -155,6 +155,7 @@ fn walk(entity: &MimeEntity<'_>, parent: Option<usize>, offset: &mut usize, out:
         MimeBodyNode::Leaf(_) => "leaf",
         MimeBodyNode::Multipart(_) => "multipart",
         MimeBodyNode::Message(_) => "message",
+        MimeBodyNode::Unparsed(_) => "unparsed",
     };
 
     out.push(Shape {
@@ -169,6 +170,7 @@ fn walk(entity: &MimeEntity<'_>, parent: Option<usize>, offset: &mut usize, out:
 
     match &entity.body {
         MimeBodyNode::Leaf(bytes) => *offset += bytes.len(),
+        MimeBodyNode::Unparsed(unparsed) => *offset += unparsed.bytes.len(),
         MimeBodyNode::Multipart(multipart) => {
             *offset += multipart.preamble.len();
 

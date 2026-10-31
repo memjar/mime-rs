@@ -240,6 +240,12 @@ impl<'a> MimeHeaderField<'a> {
         &self.line
     }
 
+    /// Whether an edit wrote the field, rather than the parse borrowing it
+    /// from the input.
+    pub fn is_owned(&self) -> bool {
+        matches!(self.line, Cow::Owned(_))
+    }
+
     /// The field name, without the blanks before the colon.
     pub fn name(&self) -> &[u8] {
         &self.line[..self.name_end as usize]

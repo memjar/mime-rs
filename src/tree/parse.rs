@@ -55,17 +55,22 @@
 use alloc::{borrow::Cow, boxed::Box, vec, vec::Vec};
 use core::{mem, ops::Range};
 
-use crate::tree::{
-    anomaly::{MimeAnomalies, MimeAnomaly},
-    body::{MimeBodyNode, MimeMultipart, MimePart},
-    coroutine::MimeCoroutineState,
-    cst::MimeCst,
-    entity::MimeEntity,
-    field::content_type::{MimeMediaType, raw_param},
-    header::{MimeHeaderBlock, MimeHeaderField, MimeHeaderItem},
-    scan::scalar::is_empty_line,
+use crate::{
+    tree::{
+        anomaly::{MimeAnomalies, MimeAnomaly},
+        body::{MimeBodyNode, MimeMultipart, MimePart, MimeUnparsed},
+        coroutine::MimeCoroutineState,
+        cst::MimeCst,
+        entity::MimeEntity,
+        field::{
+            content_type::{MimeMediaType, raw_param},
+            value,
+        },
+        header::{MimeHeaderBlock, MimeHeaderField, MimeHeaderItem},
+        scan::scalar::is_empty_line,
+    },
+    value::transfer_encoding::MimeTransferEncoding,
 };
-use crate::value::transfer_encoding::MimeTransferEncoding;
 
 /// The default nesting bound, the root counting as one.
 pub const DEPTH_MAX: usize = 64;
@@ -81,6 +86,12 @@ pub struct MimeParseOptions {
     pub max_depth: Option<usize>,
     /// The most entities a parse holds. Defaults to [`ENTITIES_MAX`].
     pub max_entities: Option<usize>,
+    /// How many levels of containers (multiparts and messages) to split,
+    /// `None` for all: at `Some(0)` the parse stops after the root header
+    /// block and keeps its body unparsed, so reading headers costs only the
+    /// header block. A body left unparsed is split later by
+    /// [`MimeEntity::expand`](crate::tree::entity::MimeEntity::expand).
+    pub structure_depth: Option<usize>,
 }
 
 /// What the parse coroutine needs found before it can progress. Each
@@ -117,10 +128,11 @@ pub struct MimeParse<'a> {
     input: &'a [u8],
     max_depth: usize,
     max_entities: usize,
+    structure_depth: usize,
     tasks: Vec<Task>,
     flat: Vec<Flat<'a>>,
     dashes: Option<Vec<usize>>,
-    state: State,
+    state: State<'a>,
 }
 
 impl<'a> MimeParse<'a> {
@@ -136,11 +148,37 @@ impl<'a> MimeParse<'a> {
             input,
             max_depth: opts.max_depth.unwrap_or(DEPTH_MAX).max(1),
             max_entities: opts.max_entities.unwrap_or(ENTITIES_MAX).max(1),
+            structure_depth: opts.structure_depth.unwrap_or(usize::MAX),
             tasks: vec![root],
             flat: Vec::new(),
             dashes: None,
             state: State::Next,
         }
+    }
+
+    /// Builds a coroutine splitting the body `input` of an entity whose
+    /// header block is `header`, as the parse would have split it: the body
+    /// a parse left [`Unparsed`](MimeBodyNode::Unparsed). The structure
+    /// depth counts from that entity, so `Some(0)` splits it alone.
+    ///
+    /// The tree it completes with is that entity, under a copy of `header`.
+    pub fn unparsed(
+        header: &MimeHeaderBlock<'a>,
+        input: &'a [u8],
+        digest: bool,
+        opts: MimeParseOptions,
+    ) -> Self {
+        let task = Task {
+            range: 0..input.len(),
+            depth: 1,
+            digest,
+        };
+
+        let mut parse = Self::new(input, opts);
+        parse.structure_depth = parse.structure_depth.saturating_add(1);
+        parse.tasks.clear();
+        parse.state = State::Body(task, header.clone());
+        parse
     }
 
     /// Progresses the parse. Pass `None` first, then the positions found
@@ -159,6 +197,11 @@ impl<'a> MimeParse<'a> {
                     };
 
                     if let Some(request) = self.start(task) {
+                        return MimeCoroutineState::Yielded(request);
+                    }
+                }
+                State::Body(task, header) => {
+                    if let Some(request) = self.body(task, header, 0, MimeAnomalies::default()) {
                         return MimeCoroutineState::Yielded(request);
                     }
                 }
@@ -359,6 +402,13 @@ impl<'a> MimeParse<'a> {
         });
 
         if too_deep {
+            return None;
+        }
+
+        // NOTE: past the structure depth, a container keeps its body whole
+        // until it is expanded.
+        if container && task.depth > self.structure_depth {
+            self.flat[index].body = FlatBody::Unparsed(&input[body], task.digest);
             return None;
         }
 
@@ -570,6 +620,7 @@ impl<'a> MimeParse<'a> {
         for entity in flat.into_iter().rev() {
             let count = match &entity.body {
                 FlatBody::Leaf(_) => 0,
+                FlatBody::Unparsed(..) => 0,
                 FlatBody::Multipart { delimiters, .. } => delimiters.len(),
                 FlatBody::Message => 1,
             };
@@ -582,6 +633,12 @@ impl<'a> MimeParse<'a> {
 
             let body = match entity.body {
                 FlatBody::Leaf(bytes) => MimeBodyNode::Leaf(Cow::Borrowed(bytes)),
+                FlatBody::Unparsed(bytes, digest) => {
+                    MimeBodyNode::Unparsed(Box::new(MimeUnparsed {
+                        bytes: Cow::Borrowed(bytes),
+                        digest,
+                    }))
+                }
                 FlatBody::Multipart {
                     preamble,
                     delimiters,
@@ -621,8 +678,9 @@ impl<'a> MimeParse<'a> {
 }
 
 #[derive(Debug)]
-enum State {
+enum State<'a> {
     Next,
+    Body(Task, MimeHeaderBlock<'a>),
     FindFieldEnds(Task),
     FindDashLines(Split),
     FindNeedle(Split),
@@ -655,6 +713,7 @@ struct Flat<'a> {
 #[derive(Debug)]
 enum FlatBody<'a> {
     Leaf(&'a [u8]),
+    Unparsed(&'a [u8], bool),
     Multipart {
         preamble: &'a [u8],
         delimiters: Vec<&'a [u8]>,
@@ -716,7 +775,7 @@ pub(crate) fn identity_encoding(header: &MimeHeaderBlock<'_>) -> bool {
     };
 
     !matches!(
-        crate::tree::field::value::transfer_encoding(field.value()),
+        value::transfer_encoding(field.value()),
         MimeTransferEncoding::Base64 | MimeTransferEncoding::QuotedPrintable
     )
 }

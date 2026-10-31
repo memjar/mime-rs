@@ -14,13 +14,14 @@ use crate::{
     tree::{
         anomaly::MimeAnomalies,
         body::MimeBodyNode,
-        cst::MimeCst,
+        cst::{MimeCst, answer},
         field::{
             content_type::{self, MimeMediaType},
             value,
         },
         header::MimeHeaderBlock,
         lists::MimeBodyLists,
+        parse::{MimeParse, MimeParseOptions},
     },
     value::{content_type::MimeDisposition, transfer_encoding::MimeTransferEncoding},
 };
@@ -108,7 +109,9 @@ impl<'a> MimeEntity<'a> {
     }
 
     /// Projects the entity onto the decoded model: every field read in its
-    /// default form, every leaf transfer-decoded where the build can.
+    /// default form, every text leaf read as text and every other leaf
+    /// transfer-decoded where the build can, an encoded nested message
+    /// parsed.
     pub fn decode(&self) -> Mime {
         let headers = self
             .header
@@ -120,9 +123,18 @@ impl<'a> MimeEntity<'a> {
             .collect();
 
         let body = match &self.body {
-            MimeBodyNode::Leaf(_) => {
-                MimeBody::Leaf(self.decoded().unwrap_or_default().into_owned())
-            }
+            MimeBodyNode::Leaf(_) => match self.nested() {
+                Some(nested) => MimeBody::Message(Box::new(nested.decode())),
+                None => match self
+                    .content_type()
+                    .is_top("text")
+                    .then(|| self.text())
+                    .flatten()
+                {
+                    Some(text) => MimeBody::Text(text.into_owned()),
+                    None => MimeBody::Binary(self.decoded().unwrap_or_default().into_owned()),
+                },
+            },
             MimeBodyNode::Multipart(multipart) => MimeBody::Multipart(
                 multipart
                     .parts
@@ -131,6 +143,11 @@ impl<'a> MimeEntity<'a> {
                     .collect(),
             ),
             MimeBodyNode::Message(nested) => MimeBody::Message(Box::new(nested.decode())),
+            MimeBodyNode::Unparsed(_) => {
+                let mut entity = self.clone();
+                entity.expand(MimeParseOptions::default());
+                return entity.decode();
+            }
         };
 
         Mime { headers, body }
@@ -317,6 +334,40 @@ impl<'a> MimeEntity<'a> {
         }
 
         Some(MimeCst::parse(&bytes).into_owned())
+    }
+
+    /// Splits a body the parse left [`Unparsed`](MimeBodyNode::Unparsed),
+    /// answering the searches through memchr, as [`MimeCst::parse_with`]
+    /// does; any other body is kept. The structure depth counts from this
+    /// entity, and what the split works around joins its anomalies.
+    pub fn expand(&mut self, opts: MimeParseOptions) {
+        let MimeBodyNode::Unparsed(unparsed) = &self.body else {
+            return;
+        };
+
+        let digest = unparsed.digest;
+        let expanded = match &unparsed.bytes {
+            Cow::Borrowed(bytes) => {
+                let bytes: &'a [u8] = bytes;
+                answer(
+                    bytes,
+                    MimeParse::unparsed(&self.header, bytes, digest, opts),
+                )
+                .root
+            }
+            Cow::Owned(bytes) => answer(
+                bytes,
+                MimeParse::unparsed(&self.header, bytes, digest, opts),
+            )
+            .root
+            .into_owned(),
+        };
+
+        self.body = expanded.body;
+
+        for anomaly in expanded.anomalies.iter() {
+            self.anomalies.insert(anomaly);
+        }
     }
 
     /// The RFC 8621 4.1.4 text body, HTML body and attachment lists of the

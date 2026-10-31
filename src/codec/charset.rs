@@ -94,6 +94,30 @@ pub fn transcode_body<'b>(label: Option<&str>, bytes: &'b [u8]) -> Option<MimeCh
     transcode(label.unwrap_or("utf-8"), bytes)
 }
 
+/// Encodes `text` in the charset `label` names, `None` when the build
+/// cannot, or when the charset cannot hold every character of the text.
+///
+/// Without the `encoding` feature only a UTF-8 or US-ASCII label encodes
+/// (US-ASCII only for ASCII text); with it, every charset the WHATWG
+/// standard can write.
+pub fn encode<'t>(label: &str, text: &'t str) -> Option<Cow<'t, [u8]>> {
+    if is_utf8_label(label) {
+        let ascii = !clean_label(label).to_ascii_lowercase().contains("utf");
+        return (!ascii || text.is_ascii()).then_some(Cow::Borrowed(text.as_bytes()));
+    }
+
+    #[cfg(feature = "encoding")]
+    let bytes =
+        encoding_rs::Encoding::for_label(clean_label(label).as_bytes()).and_then(|encoding| {
+            let (bytes, used, unmappable) = encoding.encode(text);
+            (used == encoding && !unmappable).then_some(bytes)
+        });
+    #[cfg(not(feature = "encoding"))]
+    let bytes = None;
+
+    bytes
+}
+
 fn utf8(bytes: &[u8], known: bool) -> MimeCharsetText<'_> {
     let text = String::from_utf8_lossy(bytes);
     let malformed = matches!(text, Cow::Owned(_));

@@ -20,6 +20,19 @@ pub enum MimeBodyNode<'a> {
     Multipart(Box<MimeMultipart<'a>>),
     /// A nested `message/rfc822` or `message/global` entity.
     Message(Box<MimeEntity<'a>>),
+    /// A container body the parse left unsplit, past its structure depth,
+    /// until [`MimeEntity::expand`] splits it.
+    Unparsed(Box<MimeUnparsed<'a>>),
+}
+
+/// A container body left unsplit.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct MimeUnparsed<'a> {
+    /// The body, as written.
+    pub bytes: Cow<'a, [u8]>,
+    /// Whether the entity is a part of a `multipart/digest`, so that it
+    /// reads as a message when it has no Content-Type (RFC 2046 5.1.5).
+    pub digest: bool,
 }
 
 /// A multipart body.
@@ -59,7 +72,7 @@ impl<'a> MimeBodyNode<'a> {
     pub fn leaf(&self) -> Option<&[u8]> {
         match self {
             Self::Leaf(bytes) => Some(bytes),
-            Self::Multipart(_) | Self::Message(_) => None,
+            Self::Multipart(_) | Self::Message(_) | Self::Unparsed(_) => None,
         }
     }
 
@@ -67,7 +80,7 @@ impl<'a> MimeBodyNode<'a> {
     pub fn multipart(&self) -> Option<&MimeMultipart<'a>> {
         match self {
             Self::Multipart(multipart) => Some(multipart),
-            Self::Leaf(_) | Self::Message(_) => None,
+            Self::Leaf(_) | Self::Message(_) | Self::Unparsed(_) => None,
         }
     }
 
@@ -75,7 +88,7 @@ impl<'a> MimeBodyNode<'a> {
     pub fn message(&self) -> Option<&MimeEntity<'a>> {
         match self {
             Self::Message(entity) => Some(entity),
-            Self::Leaf(_) | Self::Multipart(_) => None,
+            Self::Leaf(_) | Self::Multipart(_) | Self::Unparsed(_) => None,
         }
     }
 
@@ -94,6 +107,7 @@ impl<'a> MimeBodyNode<'a> {
                 out.push(&multipart.epilogue);
             }
             Self::Message(entity) => entity.push_chunks(out),
+            Self::Unparsed(unparsed) => out.push(&unparsed.bytes),
         }
     }
 }
@@ -117,6 +131,10 @@ impl MimeBodyNode<'_> {
                 epilogue: Cow::Owned(multipart.epilogue.into_owned()),
             })),
             Self::Message(entity) => MimeBodyNode::Message(Box::new(entity.into_owned())),
+            Self::Unparsed(unparsed) => MimeBodyNode::Unparsed(Box::new(MimeUnparsed {
+                bytes: Cow::Owned(unparsed.bytes.into_owned()),
+                digest: unparsed.digest,
+            })),
         }
     }
 }

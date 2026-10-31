@@ -26,6 +26,59 @@ encoding = ["dep:encoding_rs"]
 [lib]
 name = "mime"
 
+[[example]]
+name = "parse_and_read"
+path = "examples/parse_and_read.rs"
+required-features = ["parser", "base64", "encoding"]
+
+[[example]]
+name = "forgiving_parse"
+path = "examples/forgiving_parse.rs"
+required-features = ["parser", "base64", "encoding"]
+
+[[example]]
+name = "body_lists"
+path = "examples/body_lists.rs"
+required-features = ["parser", "base64", "encoding"]
+
+[[example]]
+name = "content_encodings"
+path = "examples/content_encodings.rs"
+required-features = ["parser", "base64", "encoding"]
+
+[[example]]
+name = "reply_and_forward"
+path = "examples/reply_and_forward.rs"
+required-features = ["parser", "base64", "encoding"]
+
+[[example]]
+name = "edit_a_draft"
+path = "examples/edit_a_draft.rs"
+required-features = ["parser", "base64", "encoding"]
+
+[[example]]
+name = "submission"
+path = "examples/submission.rs"
+required-features = ["parser", "base64", "encoding"]
+
+[[example]]
+name = "validate_errors"
+path = "examples/validate_errors.rs"
+required-features = ["parser", "base64", "encoding"]
+
+[[example]]
+name = "headers_only"
+path = "examples/headers_only.rs"
+required-features = ["parser", "base64", "encoding"]
+
+[[example]]
+name = "strict_builder"
+path = "examples/strict_builder.rs"
+
+[[example]]
+name = "raw_builder"
+path = "examples/raw_builder.rs"
+
 [[bench]]
 name = "compare"
 path = "benches/compare.rs"
@@ -35,9 +88,9 @@ required-features = ["parser", "base64", "encoding"]
 [dev-dependencies]
 criterion = { version = "0.8", default-features = false, features = ["cargo_bench_support"] }
 mail-builder = { version = "1", default-features = false }
-mail-parser = { version = "1", features = ["full_encoding", "serde"] }
+mail-parser = { version = "1", default-features = false, features = ["full_encoding", "serde"] }
 proptest = { version = "1", default-features = false, features = ["std"] }
-serde_json = "1"
+serde_json = { version = "1", default-features = false, features = ["std"] }
 
 [dependencies]
 base64 = { version = "0.23", default-features = false, features = ["alloc"], optional = true }

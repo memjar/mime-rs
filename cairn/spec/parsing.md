@@ -135,3 +135,12 @@ Every leaf of a parsed tree SHALL borrow the input, and parsing SHALL copy no in
 ### Requirement: The corpus is swept
 
 Every vendored fixture SHALL parse, round-trip byte for byte as written and in its LF and CRLF forms, parse alike through both answerers, and, where it has a frozen answer, carry the structure that answer states (part tree, kinds, header, body and end offsets), unless tests/corpus/divergence.tsv holds a row for that fixture and path with its reason. The fixtures without frozen answers SHALL match mail-parser 1.0's offsets live. Each source directory SHALL assert its fixture count.
+
+### Requirement: Structure is parsed as deep as asked
+
+`MimeParseOptions::structure_depth` SHALL bound how many levels of containers the parse splits, `None` for all. A container past it SHALL keep its body whole as `MimeBodyNode::Unparsed`, which serializes as written, and `MimeEntity::expand` (or `MimeCst::expand` for every such body) SHALL split it later, the depth counting from that entity, its anomalies joining the entity's. A tree expanded in full SHALL equal the tree a full parse gives. `MimeParse::unparsed` SHALL be the coroutine of one such split, for callers answering the searches themselves. `decode` SHALL split what it needs.
+
+#### Scenario: Reading the headers of a large message
+- GIVEN a multipart message parsed at `structure_depth` `Some(0)`
+- WHEN the parse runs
+- THEN it yields one field-ends request and no other, the root body stays unparsed, and expanding it gives the tree a full parse gives

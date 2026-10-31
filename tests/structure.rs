@@ -302,3 +302,50 @@ fn issues_and_sieve_fixtures_match_mail_parser_structure() {
         }
     }
 }
+
+#[test]
+fn a_parse_at_structure_depth_zero_reads_the_root_header_block_alone() {
+    let input = concat!(
+        "Subject: hi\r\n",
+        "Content-Type: multipart/mixed; boundary=b\r\n",
+        "\r\n",
+        "--b\r\n",
+        "\r\n",
+        "one\r\n",
+        "--b--\r\n",
+    )
+    .as_bytes();
+
+    let opts = MimeParseOptions {
+        structure_depth: Some(0),
+        ..Default::default()
+    };
+    let mut parse = MimeParse::new(input, opts);
+    let mut found = Vec::new();
+    let mut arg = None;
+    let mut requests = Vec::new();
+
+    let mut cst = loop {
+        match parse.resume(arg.take()) {
+            MimeCoroutineState::Yielded(request) => {
+                found.clear();
+
+                if let MimeParseYield::WantsFieldEnds { range } = &request {
+                    memchr::field_ends(input, range.clone(), &mut found);
+                }
+
+                requests.push(request);
+                arg = Some(found.as_slice());
+            }
+            MimeCoroutineState::Complete(cst) => break cst,
+        }
+    };
+
+    assert_eq!(requests.len(), 1);
+    assert!(matches!(requests[0], MimeParseYield::WantsFieldEnds { .. }));
+    assert!(matches!(cst.root.body, MimeBodyNode::Unparsed(_)));
+    assert_eq!(cst.decode(), MimeCst::parse(input).decode());
+
+    cst.expand(MimeParseOptions::default());
+    assert_eq!(cst, MimeCst::parse(input));
+}

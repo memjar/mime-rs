@@ -6,6 +6,7 @@
 //! encoded words inside values.
 
 use alloc::{borrow::Cow, string::String, vec::Vec};
+use core::ops::Range;
 
 use crate::{
     codec::{
@@ -210,6 +211,62 @@ pub(crate) fn raw_param(value: &[u8], name: &str) -> Option<Vec<u8>> {
             } else {
                 Some(value)
             };
+        }
+    }
+}
+
+/// The byte range of the value of the parameter `name`, its quotes
+/// included, in a raw Content-Type or Content-Disposition value; `None`
+/// when the parameter is absent or written by RFC 2231.
+pub(crate) fn param_span(value: &[u8], name: &str) -> Option<Range<usize>> {
+    let mut lex = Lexer::new(value);
+
+    lex.skip_cfws();
+    lex.until(|byte| matches!(byte, b'/' | b';' | b'(') || is_blank(byte));
+    lex.skip_cfws();
+
+    if lex.peek() == Some(b'/') {
+        lex.bump();
+        lex.skip_cfws();
+        lex.until(|byte| matches!(byte, b';' | b'(') || is_blank(byte));
+    }
+
+    loop {
+        while matches!(lex.peek(), Some(b';')) {
+            lex.bump();
+        }
+
+        lex.skip_cfws();
+
+        if lex.is_done() {
+            return None;
+        }
+
+        let start = lex.pos;
+        let found = lex.until(|byte| matches!(byte, b'=' | b';' | b'(') || is_blank(byte));
+        lex.skip_cfws();
+
+        if lex.peek() != Some(b'=') {
+            if lex.pos == start {
+                lex.bump();
+            }
+
+            continue;
+        }
+
+        lex.bump();
+        lex.skip_cfws();
+
+        let value_start = lex.pos;
+
+        if lex.peek() == Some(b'"') {
+            lex.quoted();
+        } else {
+            lex.until(|byte| matches!(byte, b';' | b'(') || is_blank(byte));
+        }
+
+        if found.eq_ignore_ascii_case(name.as_bytes()) {
+            return Some(value_start..lex.pos);
         }
     }
 }

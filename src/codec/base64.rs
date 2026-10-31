@@ -55,18 +55,20 @@ pub fn decode_b(input: &[u8], out: &mut Vec<u8>) -> bool {
 ///
 /// Refs: <https://datatracker.ietf.org/doc/html/rfc2045#section-6.8>
 pub fn encode(input: &[u8], eol: &[u8], out: &mut Vec<u8>) {
+    // NOTE: the crate encodes a block of many lines per call, which costs
+    // far less than one call per line.
+    const LINES: usize = 64;
+
+    let mut block = [0; LINES * 76];
     out.reserve(input.len().div_ceil(57) * (76 + eol.len()));
 
-    for chunk in input.chunks(57) {
-        let start = out.len();
-        out.resize(start + chunk.len().div_ceil(3) * 4, 0);
+    for chunk in input.chunks(LINES * 57) {
+        let written = ENGINE.encode_slice(chunk, &mut block).unwrap_or_default();
 
-        let written = ENGINE
-            .encode_slice(chunk, &mut out[start..])
-            .unwrap_or_default();
-
-        out.truncate(start + written);
-        out.extend_from_slice(eol);
+        for line in block[..written].chunks(76) {
+            out.extend_from_slice(line);
+            out.extend_from_slice(eol);
+        }
     }
 }
 

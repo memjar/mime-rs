@@ -35,6 +35,9 @@ pub trait MimeHeaderMarker {
     /// Takes the typed value out of a decoded one, `None` when the field did
     /// not read in its form.
     fn from_value(value: MimeHeaderValue) -> Option<Self::Value>;
+
+    /// Wraps a typed value into a decoded one of the field's form.
+    fn into_value(value: Self::Value) -> MimeHeaderValue;
 }
 
 macro_rules! markers {
@@ -53,6 +56,10 @@ macro_rules! markers {
                         MimeHeaderValue::$arm(value) => Some(value),
                         _ => None,
                     }
+                }
+
+                fn into_value(value: $value) -> MimeHeaderValue {
+                    MimeHeaderValue::$arm(value)
                 }
             }
         )*

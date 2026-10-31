@@ -1,0 +1,15 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc aca3832996747fb7803febea82bcc212af94385be14c0bad6ab7b73f8d47816b # shrinks to pick = 213796400826276471, edits = [Wrap(1602190413415459841), Wrap(2810235576842851899)]
+cc 44f0e49f442656c3bc60cd046bc567995eddbef3b7aec6802c5891c0b3766551 # shrinks to pick = 6972175333498906888, edits = [Content(0, [0])]
+cc fe75ae1c6b3b3ff9307565ba99badd5647314b6c78dd927121a684dacff3dd84 # shrinks to pick = 14776967877571374893, edits = [Drop(8395130075210303216, 0)]
+cc 102422c02fe836aaf70dff8e1248ac297061f6274d99008b8e46950560d4f5c0 # shrinks to pick = 3622625467727516105, edits = [Part(9872807837074933572, 1, ""), Wrap(13542985079925136722)]
+cc 4807ee880fd04d486914736dc72e3d82b8394731cc6eb267cebdc8cbe82b0f46 # shrinks to pick = 10180243509670622666, edits = [Wrap(334997848622405327)]
+cc befeb972961ee83e262535b1e7e181bc2da864509b6c11eacf1bf6e7471ea720 # shrinks to pick = 4614121618515174123, edits = [Part(3287400998932562118, 0, "")]
+cc a1aa91464c4288b6ca409f1ee49f2425b47b4a25255c36b260bbd9eb2ec0709a # shrinks to pick = 1827636934666187664, edits = [Part(0, 0, "")]
+cc 43ed99155c2318bfed86b8b82968b1bd14740dcc4fd94d1d1638755f9ed9409d # shrinks to pick = 5430941231993579403, edits = [Remove("Subject")]
+cc f77470574dda448f3268008b7c7740a238091c7735b971ee45fe481ab73fd601 # shrinks to pick = 6663826116977454258, edits = [Content(11388788135003239138, [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 32, 32, 0, 32, 0, 32, 32, 0, 0, 32, 32, 32, 0, 0, 32, 32, 32, 0, 0, 0, 32, 0])]

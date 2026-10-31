@@ -1,7 +1,7 @@
 //! # Content codecs
 //!
 //! The transfer encodings and character sets content arrives in, decoded
-//! only when asked for: [`base64`] (behind the `base64` feature),
+//! only when asked for: `base64` (behind the `base64` feature),
 //! [`quoted_printable`], [`rfc2047`] encoded words, [`rfc2231`] parameter
 //! values and [`charset`] transcoding (behind the `encoding` feature).
 //!

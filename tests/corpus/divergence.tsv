@@ -53,3 +53,33 @@ stalwart-regressions/utf7-terminators	crlf.part[5].text	UTF-7 kept as written, c
 stalwart-regressions/utf7-terminators	crlf.part[5].problems	UTF-7 kept as written, charset reported unknown	UTF-7 (RFC 2152) is outside the WHATWG encodings encoding_rs implements, so it reads as UTF-8 (D3); mail-parser decodes it
 stalwart-regressions/utf7-terminators	crlf.part[6].text	UTF-7 kept as written, charset reported unknown	UTF-7 (RFC 2152) is outside the WHATWG encodings encoding_rs implements, so it reads as UTF-8 (D3); mail-parser decodes it
 stalwart-regressions/utf7-terminators	crlf.part[6].problems	UTF-7 kept as written, charset reported unknown	UTF-7 (RFC 2152) is outside the WHATWG encodings encoding_rs implements, so it reads as UTF-8 (D3); mail-parser decodes it
+dovecot-malformed/015	lf.part[0].return-path	read as an address	RFC 5322 3.6.7 writes Return-Path as an angle-addr, possibly <>; mail-parser reads it as identifiers
+dovecot-malformed/015	crlf.part[0].return-path	read as an address	RFC 5322 3.6.7 writes Return-Path as an angle-addr, possibly <>; mail-parser reads it as identifiers
+dovecot-thirdparty/014	lf.part[0].return-path	read as an address	RFC 5322 3.6.7 writes Return-Path as an angle-addr, possibly <>; mail-parser reads it as identifiers
+dovecot-thirdparty/014	lf.part[0].list-id	read as text	RFC 2919 3 makes List-Id a phrase and a list identifier, not a mailbox; mail-parser reads it as an address
+dovecot-thirdparty/014	crlf.part[0].return-path	read as an address	RFC 5322 3.6.7 writes Return-Path as an angle-addr, possibly <>; mail-parser reads it as identifiers
+dovecot-thirdparty/014	crlf.part[0].list-id	read as text	RFC 2919 3 makes List-Id a phrase and a list identifier, not a mailbox; mail-parser reads it as an address
+dovecot-thirdparty/015	lf.part[0].return-path	read as an address	RFC 5322 3.6.7 writes Return-Path as an angle-addr, possibly <>; mail-parser reads it as identifiers
+dovecot-thirdparty/015	lf.part[3].return-path	read as an address	RFC 5322 3.6.7 writes Return-Path as an angle-addr, possibly <>; mail-parser reads it as identifiers
+dovecot-thirdparty/015	lf.part[5].return-path	read as an address	RFC 5322 3.6.7 writes Return-Path as an angle-addr, possibly <>; mail-parser reads it as identifiers
+dovecot-thirdparty/015	lf.part[7].return-path	read as an address	RFC 5322 3.6.7 writes Return-Path as an angle-addr, possibly <>; mail-parser reads it as identifiers
+dovecot-thirdparty/015	crlf.part[0].return-path	read as an address	RFC 5322 3.6.7 writes Return-Path as an angle-addr, possibly <>; mail-parser reads it as identifiers
+dovecot-thirdparty/015	crlf.part[3].return-path	read as an address	RFC 5322 3.6.7 writes Return-Path as an angle-addr, possibly <>; mail-parser reads it as identifiers
+dovecot-thirdparty/015	crlf.part[5].return-path	read as an address	RFC 5322 3.6.7 writes Return-Path as an angle-addr, possibly <>; mail-parser reads it as identifiers
+dovecot-thirdparty/015	crlf.part[7].return-path	read as an address	RFC 5322 3.6.7 writes Return-Path as an angle-addr, possibly <>; mail-parser reads it as identifiers
+stalwart-regressions/blank-continuation-in-header-block	lf.part[0].from	a lone word is an address	A lone word with no @ is a domain-less address, as RFC 5321 4.5.1 postmaster is written; mail-parser reads it as a display name
+stalwart-regressions/blank-continuation-in-header-block	crlf.part[0].from	a lone word is an address	A lone word with no @ is a domain-less address, as RFC 5321 4.5.1 postmaster is written; mail-parser reads it as a display name
+stalwart-rfc/001	lf.part[0].from	a lone word is an address	A lone word with no @ is a domain-less address, as RFC 5321 4.5.1 postmaster is written; mail-parser reads it as a display name
+stalwart-rfc/001	lf.part[0].to	a lone word is an address	A lone word with no @ is a domain-less address, as RFC 5321 4.5.1 postmaster is written; mail-parser reads it as a display name
+stalwart-rfc/001	crlf.part[0].from	a lone word is an address	A lone word with no @ is a domain-less address, as RFC 5321 4.5.1 postmaster is written; mail-parser reads it as a display name
+stalwart-rfc/001	crlf.part[0].to	a lone word is an address	A lone word with no @ is a domain-less address, as RFC 5321 4.5.1 postmaster is written; mail-parser reads it as a display name
+stalwart-rfc/002	lf.part[3].return-path	read as an address	RFC 5322 3.6.7 writes Return-Path as an angle-addr, possibly <>; mail-parser reads it as identifiers
+stalwart-rfc/002	crlf.part[3].return-path	read as an address	RFC 5322 3.6.7 writes Return-Path as an angle-addr, possibly <>; mail-parser reads it as identifiers
+stalwart-rfc/004	lf.part[0].from	a lone word is an address	A lone word with no @ is a domain-less address, as RFC 5321 4.5.1 postmaster is written; mail-parser reads it as a display name
+stalwart-rfc/004	lf.part[0].to	a lone word is an address	A lone word with no @ is a domain-less address, as RFC 5321 4.5.1 postmaster is written; mail-parser reads it as a display name
+stalwart-rfc/004	lf.part[4].from	a lone word is an address	A lone word with no @ is a domain-less address, as RFC 5321 4.5.1 postmaster is written; mail-parser reads it as a display name
+stalwart-rfc/004	lf.part[6].from	a lone word is an address	A lone word with no @ is a domain-less address, as RFC 5321 4.5.1 postmaster is written; mail-parser reads it as a display name
+stalwart-rfc/004	crlf.part[0].from	a lone word is an address	A lone word with no @ is a domain-less address, as RFC 5321 4.5.1 postmaster is written; mail-parser reads it as a display name
+stalwart-rfc/004	crlf.part[0].to	a lone word is an address	A lone word with no @ is a domain-less address, as RFC 5321 4.5.1 postmaster is written; mail-parser reads it as a display name
+stalwart-rfc/004	crlf.part[4].from	a lone word is an address	A lone word with no @ is a domain-less address, as RFC 5321 4.5.1 postmaster is written; mail-parser reads it as a display name
+stalwart-rfc/004	crlf.part[6].from	a lone word is an address	A lone word with no @ is a domain-less address, as RFC 5321 4.5.1 postmaster is written; mail-parser reads it as a display name

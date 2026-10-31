@@ -3,7 +3,7 @@
 //! The decoded value of a Content-Transfer-Encoding field (RFC 2045 6.1).
 
 use alloc::string::String;
-use core::fmt;
+use core::{fmt, ops::Deref};
 
 /// A content transfer encoding mechanism.
 ///
@@ -62,6 +62,14 @@ impl MimeTransferEncoding {
     /// 2045 6.2), the only encodings a composite type may take.
     pub fn is_identity(&self) -> bool {
         matches!(self, Self::SevenBit | Self::EightBit | Self::Binary)
+    }
+}
+
+impl Deref for MimeTransferEncoding {
+    type Target = str;
+
+    fn deref(&self) -> &str {
+        self.as_str()
     }
 }
 

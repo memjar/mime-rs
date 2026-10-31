@@ -4,7 +4,7 @@
 //! fields in order and its body, transfer encodings resolved. It carries no
 //! wire detail (folds, quoting, preambles), which the syntax tree keeps.
 
-use alloc::{boxed::Box, vec::Vec};
+use alloc::{boxed::Box, string::String, vec::Vec};
 
 use crate::{
     header::{MimeHeader, MimeHeaderKind},
@@ -23,9 +23,12 @@ pub struct Mime {
 /// A decoded body.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MimeBody {
-    /// Content, its transfer encoding resolved where the build can decode
-    /// it, still in its own charset.
-    Leaf(Vec<u8>),
+    /// The content of a `text` leaf, transfer-decoded and transcoded to
+    /// UTF-8, flowed text unwrapped.
+    Text(String),
+    /// The content of any other leaf, or of a text leaf whose charset the
+    /// build cannot transcode, transfer-decoded where the build can.
+    Binary(Vec<u8>),
     /// The parts of a multipart, in order.
     Multipart(Vec<Mime>),
     /// A nested message.
@@ -34,7 +37,7 @@ pub enum MimeBody {
 
 impl Default for MimeBody {
     fn default() -> Self {
-        Self::Leaf(Vec::new())
+        Self::Binary(Vec::new())
     }
 }
 

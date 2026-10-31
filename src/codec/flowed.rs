@@ -17,15 +17,7 @@ pub fn decode(text: &str, delsp: bool) -> String {
     let eol = if text.contains("\r\n") { "\r\n" } else { "\n" };
     let mut out = String::with_capacity(text.len());
     let mut paragraph: Option<(usize, String)> = None;
-    let ends_with_break = text.ends_with('\n');
-    let mut lines: Vec<&str> = text
-        .split('\n')
-        .map(|line| line.strip_suffix('\r').unwrap_or(line))
-        .collect();
-
-    if ends_with_break {
-        lines.pop();
-    }
+    let (lines, ends_with_break) = lines(text);
 
     for line in lines {
         let depth = line.bytes().take_while(|byte| *byte == b'>').count();
@@ -69,33 +61,32 @@ pub fn decode(text: &str, delsp: bool) -> String {
 
 /// Wraps text as flowed, `DelSp=no`: every line longer than `width` breaks
 /// after a space, which stays to mark the soft break; trailing spaces of a
-/// hard line are removed, since one would read as a soft break; a line
-/// starting with a space, `>` or `From ` is space-stuffed.
+/// hard line are removed, since one would read as a soft break, and so are
+/// trailing CRs under an LF `eol`, which would not read back as content; a
+/// line starting with a space, `>` or `From ` is space-stuffed.
 ///
 /// Refs: <https://datatracker.ietf.org/doc/html/rfc3676#section-4.1>
 pub fn encode(text: &str, width: usize, eol: &str) -> String {
     let mut out = String::with_capacity(text.len() + text.len() / width.max(1));
-    let ends_with_break = text.ends_with('\n');
-    let mut lines: Vec<&str> = text
-        .split('\n')
-        .map(|line| line.strip_suffix('\r').unwrap_or(line))
-        .collect();
-
-    if ends_with_break {
-        lines.pop();
-    }
+    let (lines, ends_with_break) = lines(text);
 
     for (index, line) in lines.iter().enumerate() {
         let line = if *line == "-- " {
             *line
         } else {
-            line.trim_end_matches(' ')
+            line.trim_end_matches(|c| c == ' ' || (c == '\r' && eol == "\n"))
         };
         let mut rest = line;
 
         loop {
             let cut = if rest.len() > width {
-                rest[..width]
+                let mut edge = width;
+
+                while !rest.is_char_boundary(edge) {
+                    edge -= 1;
+                }
+
+                rest[..edge]
                     .rfind(' ')
                     .map(|space| space + 1)
                     .filter(|cut| *cut > 0)
@@ -131,6 +122,26 @@ pub fn encode(text: &str, width: usize, eol: &str) -> String {
     out
 }
 
+/// The lines of text, each without its line ending (an LF, with the CR
+/// before it), and whether the text ends with a line ending; a CR not
+/// before an LF is content.
+fn lines(text: &str) -> (Vec<&str>, bool) {
+    let mut lines: Vec<&str> = text.split('\n').collect();
+    let last = lines.pop().unwrap_or_default();
+
+    for line in &mut lines {
+        *line = line.strip_suffix('\r').unwrap_or(line);
+    }
+
+    let ends_with_break = last.is_empty() && !lines.is_empty();
+
+    if !ends_with_break {
+        lines.push(last);
+    }
+
+    (lines, ends_with_break)
+}
+
 fn push_line(out: &mut String, depth: usize, content: &str, eol: &str) {
     if depth > 0 {
         for _ in 0..depth {
@@ -146,6 +157,8 @@ fn push_line(out: &mut String, depth: usize, content: &str, eol: &str) {
 
 #[cfg(test)]
 mod tests {
+    use alloc::format;
+
     use crate::codec::flowed::*;
 
     #[test]
@@ -169,6 +182,13 @@ mod tests {
             decode("  indented\n From here\n", false),
             " indented\nFrom here\n"
         );
+    }
+
+    #[test]
+    fn a_wide_character_at_the_margin_is_not_split() {
+        let text = format!("{} é{}\n", "a".repeat(70), "b".repeat(20));
+        let flowed = encode(&text, 72, "\n");
+        assert_eq!(decode(&flowed, false), text);
     }
 
     #[test]

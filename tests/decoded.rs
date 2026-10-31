@@ -268,3 +268,28 @@ fn decoded_content_agrees_with_the_frozen_answers() {
         failures.join("\n")
     );
 }
+
+#[test]
+fn a_text_prefix_reads_only_what_it_needs() {
+    let line = "Caf=C3=A9 au lait, une ligne assez longue pour remplir la page.\r\n";
+    let message = format!(
+        "Content-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\n{}",
+        line.repeat(2000)
+    );
+    let cst = MimeCst::parse(message.as_bytes());
+
+    assert_eq!(cst.root.text_prefix(8).as_deref(), Some("Café au "));
+    assert_eq!(
+        cst.root
+            .text_prefix(1_000_000)
+            .map(|text| text.chars().count()),
+        cst.root.text().map(|text| text.chars().count())
+    );
+}
+
+#[test]
+fn a_folded_value_unfolds_keeping_its_blanks() {
+    let cst = MimeCst::parse(b"Subject: a\r\n  b\n\tc\r\n\r\n");
+    let field = cst.root.header.get("subject").unwrap();
+    assert_eq!(field.unfolded().as_ref(), b" a  b\tc");
+}

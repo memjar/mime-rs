@@ -2,7 +2,7 @@
 //! read through this crate's readers and compared with its expected
 //! reading, unless tests/vectors/divergence.tsv holds a row for it.
 
-#![cfg(feature = "parser")]
+#![cfg(all(feature = "parser", feature = "base64", feature = "encoding"))]
 
 use std::{fs, path::PathBuf};
 

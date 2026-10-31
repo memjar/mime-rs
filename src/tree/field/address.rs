@@ -10,6 +10,7 @@
 //! no `@` is an address when it stands alone and a name otherwise.
 
 use alloc::{string::String, vec::Vec};
+use core::ops::Range;
 
 use crate::{
     codec::rfc2047,
@@ -105,6 +106,62 @@ pub fn parse_addresses(value: &[u8]) -> MimeAddressList {
 /// the RFC 8621 4.1.2.3 addresses form.
 pub fn parse_mailboxes(value: &[u8]) -> MimeAddressList {
     parse_addresses(value).mailboxes().cloned().collect()
+}
+
+/// The byte ranges of the items of an address list as written, mailboxes
+/// and groups, split at the commas outside quoted strings, comments, angle
+/// addresses and groups, the blanks and folds around each included and the
+/// commas excluded; an empty item between two commas is kept as an empty
+/// range, so ranges and commas alternate.
+pub(crate) fn item_spans(value: &[u8]) -> Vec<Range<usize>> {
+    let mut spans = Vec::new();
+    let mut start = 0;
+    let mut quoted = false;
+    let mut depth = 0usize;
+    let mut angle = false;
+    let mut group = false;
+    let mut i = 0;
+
+    while let Some(&byte) = value.get(i) {
+        if quoted || depth > 0 {
+            match byte {
+                b'\\' => i += 1,
+                b'"' if quoted => quoted = false,
+                b'(' if depth > 0 => depth += 1,
+                b')' if depth > 0 => depth -= 1,
+                _ => {}
+            }
+
+            i += 1;
+            continue;
+        }
+
+        match byte {
+            b'"' => quoted = true,
+            b'(' => depth = 1,
+            b'<' => angle = true,
+            b'>' => angle = false,
+            b':' if !angle && !group => group = true,
+            b';' if group => group = false,
+            b',' if !angle && !group => {
+                spans.push(start..i);
+                start = i + 1;
+            }
+            _ => {}
+        }
+
+        i += 1;
+    }
+
+    spans.push(start..value.len());
+    spans
+}
+
+/// Whether an item range holds anything but blanks and folds.
+pub(crate) fn is_item(value: &[u8]) -> bool {
+    value
+        .iter()
+        .any(|byte| !matches!(byte, b' ' | b'\t' | b'\r' | b'\n'))
 }
 
 #[derive(Debug)]
@@ -438,11 +495,16 @@ mod tests {
     }
 
     #[test]
-    fn a_route_is_dropped_and_encoded_words_decode() {
+    fn a_route_is_dropped() {
         assert_eq!(
             mailboxes("Mary <@node.test:mary@example.net>"),
             [MimeMailbox::named("Mary", "mary@example.net")]
         );
+    }
+
+    #[cfg(feature = "encoding")]
+    #[test]
+    fn a_latin_1_encoded_word_decodes_in_a_name() {
         assert_eq!(
             mailboxes("=?ISO-8859-1?Q?Andr=E9?= Pirard <PIRARD@vm1.ulg.ac.be>"),
             [MimeMailbox::named("André Pirard", "PIRARD@vm1.ulg.ac.be")]

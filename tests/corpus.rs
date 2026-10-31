@@ -10,7 +10,7 @@
 
 mod common;
 
-use mime::tree::cst::MimeCst;
+use mime::tree::{cst::MimeCst, parse::MimeParseOptions};
 
 use crate::common::{
     Fixture, divergences, fixtures, frozen_shapes, line_endings, parse_scalar, shapes,
@@ -36,6 +36,18 @@ fn round_trips(name: &str, input: &[u8]) {
         bytes,
         "not a fixpoint: {name}"
     );
+
+    for depth in 0..3 {
+        let opts = MimeParseOptions {
+            structure_depth: Some(depth),
+            ..Default::default()
+        };
+        let mut lazy = MimeCst::parse_with(input, opts);
+        assert_eq!(lazy.to_bytes(), input, "lazy not byte-faithful: {name}");
+
+        lazy.expand(MimeParseOptions::default());
+        assert_eq!(lazy, cst, "expanded differs at depth {depth}: {name}");
+    }
 }
 
 #[test]

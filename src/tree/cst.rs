@@ -36,28 +36,26 @@ impl<'a> MimeCst<'a> {
 
     /// Parses like [`parse`](Self::parse), under the given bounds.
     pub fn parse_with(input: &'a [u8], opts: MimeParseOptions) -> Self {
-        let mut parse = MimeParse::new(input, opts);
-        let mut found = Vec::new();
-        let mut arg = None;
+        answer(input, MimeParse::new(input, opts))
+    }
 
-        loop {
-            match parse.resume(arg.take()) {
-                MimeCoroutineState::Yielded(MimeParseYield::WantsFieldEnds { range }) => {
-                    found.clear();
-                    memchr::field_ends(input, range, &mut found);
-                    arg = Some(found.as_slice());
+    /// Splits every body the parse left unparsed, as
+    /// [`MimeEntity::expand`] does, each from its own entity.
+    pub fn expand(&mut self, opts: MimeParseOptions) {
+        let mut stack = Vec::from([&mut self.root]);
+
+        while let Some(entity) = stack.pop() {
+            if matches!(entity.body, MimeBodyNode::Unparsed(_)) {
+                entity.expand(opts.clone());
+                continue;
+            }
+
+            match &mut entity.body {
+                MimeBodyNode::Multipart(multipart) => {
+                    stack.extend(multipart.parts.iter_mut().map(|part| &mut part.entity));
                 }
-                MimeCoroutineState::Yielded(MimeParseYield::WantsDashLines { range }) => {
-                    found.clear();
-                    memchr::dash_lines(input, range, &mut found);
-                    arg = Some(found.as_slice());
-                }
-                MimeCoroutineState::Yielded(MimeParseYield::WantsFind { range, needle }) => {
-                    found.clear();
-                    memchr::find(input, range, &needle, &mut found);
-                    arg = Some(found.as_slice());
-                }
-                MimeCoroutineState::Complete(cst) => break cst,
+                MimeBodyNode::Message(nested) => stack.push(nested),
+                MimeBodyNode::Leaf(_) | MimeBodyNode::Unparsed(_) => {}
             }
         }
     }
@@ -82,7 +80,7 @@ impl<'a> MimeCst<'a> {
             out.push(entity);
 
             match &entity.body {
-                MimeBodyNode::Leaf(_) => {}
+                MimeBodyNode::Leaf(_) | MimeBodyNode::Unparsed(_) => {}
                 MimeBodyNode::Multipart(multipart) => {
                     stack.extend(multipart.parts.iter().rev().map(|part| &part.entity));
                 }
@@ -120,6 +118,34 @@ impl MimeCst<'_> {
     pub fn into_owned(self) -> MimeCst<'static> {
         MimeCst {
             root: self.root.into_owned(),
+        }
+    }
+}
+
+/// Runs a parse coroutine to completion over `input`, answering its
+/// searches through memchr.
+pub(crate) fn answer<'a>(input: &'a [u8], mut parse: MimeParse<'a>) -> MimeCst<'a> {
+    let mut found = Vec::new();
+    let mut arg = None;
+
+    loop {
+        match parse.resume(arg.take()) {
+            MimeCoroutineState::Yielded(MimeParseYield::WantsFieldEnds { range }) => {
+                found.clear();
+                memchr::field_ends(input, range, &mut found);
+                arg = Some(found.as_slice());
+            }
+            MimeCoroutineState::Yielded(MimeParseYield::WantsDashLines { range }) => {
+                found.clear();
+                memchr::dash_lines(input, range, &mut found);
+                arg = Some(found.as_slice());
+            }
+            MimeCoroutineState::Yielded(MimeParseYield::WantsFind { range, needle }) => {
+                found.clear();
+                memchr::find(input, range, &needle, &mut found);
+                arg = Some(found.as_slice());
+            }
+            MimeCoroutineState::Complete(cst) => break cst,
         }
     }
 }

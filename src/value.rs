@@ -7,6 +7,7 @@
 pub mod address;
 pub mod content_type;
 pub mod datetime;
+pub mod message_id;
 pub mod subject;
 pub mod transfer_encoding;
 

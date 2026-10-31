@@ -59,10 +59,12 @@ pub fn decode_q(input: &[u8], out: &mut Vec<u8>) -> bool {
 /// Encodes `input` as a quoted-printable body with lines of at most 76
 /// characters, soft breaks included, each ending in `eol`.
 ///
-/// With `text`, a line break of the input (CRLF or LF) is a hard break
-/// written as `eol`; without it every byte is data and CR and LF are
-/// encoded. A blank ending a line is always encoded, and so is a leading
-/// `.` or `F` that could be read as an SMTP or mbox marker.
+/// With `text`, a line break of the input (an LF, with the CR before it
+/// when `eol` is CRLF) is a hard break written as `eol`, and any other CR
+/// is data; without `text` every byte is data and CR and LF are encoded.
+/// A blank ending a line is always encoded, and so is a leading `.` or
+/// `F` an SMTP or mbox reader could take for a marker, and a leading `-`,
+/// so that no line of the output can read as a MIME delimiter.
 ///
 /// Refs: <https://datatracker.ietf.org/doc/html/rfc2045#section-6.7>
 pub fn encode(input: &[u8], text: bool, eol: &[u8], out: &mut Vec<u8>) {
@@ -72,7 +74,7 @@ pub fn encode(input: &[u8], text: bool, eol: &[u8], out: &mut Vec<u8>) {
     let mut i = 0;
 
     while let Some(&byte) = input.get(i) {
-        if text && (byte == b'\n' || (byte == b'\r' && input.get(i + 1) == Some(&b'\n'))) {
+        if text && breaks(input, i, eol) {
             out.extend_from_slice(eol);
             column = 0;
             i += if byte == b'\r' { 2 } else { 1 };
@@ -80,33 +82,33 @@ pub fn encode(input: &[u8], text: bool, eol: &[u8], out: &mut Vec<u8>) {
         }
 
         let next = input.get(i + 1).copied();
-        let ends_line = next.is_none() || (text && matches!(next, Some(b'\r' | b'\n')));
-        let literal = match byte {
+        let ends_line = next.is_none() || (text && breaks(input, i + 1, eol));
+        let literal = |column: usize| match byte {
             b' ' | b'\t' => !ends_line,
-            b'.' | b'F' if column == 0 => false,
+            b'.' | b'F' | b'-' if column == 0 => false,
             b'=' => false,
             33..=126 => true,
             _ => false,
         };
-        let width = if literal { 1 } else { 3 };
+        let width = |column: usize| if literal(column) { 1 } else { 3 };
 
         // NOTE: keep one column for the soft break's `=`, unless this is the
         // last character of its line.
         let room = if ends_line { LIMIT } else { LIMIT - 1 };
 
-        if column + width > room {
+        if column + width(column) > room {
             out.push(b'=');
             out.extend_from_slice(eol);
             column = 0;
         }
 
-        if literal && !(column == 0 && matches!(byte, b'.' | b'F')) {
+        if literal(column) {
             out.push(byte);
         } else {
             push_escape(byte, out);
         }
 
-        column += width;
+        column += width(column);
         i += 1;
     }
 }
@@ -170,6 +172,16 @@ fn decode_run(run: &[u8], out: &mut Vec<u8>, q: bool) -> bool {
     clean
 }
 
+/// Whether a hard line break of text starts at `at`: an LF, or a CR
+/// before one when `eol` is CRLF.
+fn breaks(input: &[u8], at: usize, eol: &[u8]) -> bool {
+    match input.get(at) {
+        Some(b'\n') => true,
+        Some(b'\r') => eol == b"\r\n" && input.get(at + 1) == Some(&b'\n'),
+        _ => false,
+    }
+}
+
 fn push_escape(byte: u8, out: &mut Vec<u8>) {
     const HEX: &[u8; 16] = b"0123456789ABCDEF";
 
@@ -208,7 +220,7 @@ fn trim_end_blanks(line: &[u8]) -> &[u8] {
 
 #[cfg(test)]
 mod tests {
-    use alloc::vec::Vec;
+    use alloc::{vec, vec::Vec};
 
     use crate::codec::quoted_printable::*;
 
@@ -260,6 +272,39 @@ mod tests {
 
                 assert_eq!(decoded(&encoded), (input, true));
             }
+        }
+    }
+
+    #[test]
+    fn a_blank_before_a_lone_cr_keeps_room_for_the_soft_break() {
+        for column in 60..80 {
+            let mut input = vec![b'a'; column];
+            input.extend_from_slice(b" \rb");
+            let mut encoded = Vec::new();
+            encode(&input, true, b"\r\n", &mut encoded);
+
+            for line in encoded.split(|byte| *byte == b'\n') {
+                assert!(line.strip_suffix(b"\r").unwrap_or(line).len() <= 76);
+            }
+
+            assert_eq!(decoded(&encoded), (input, true));
+        }
+    }
+
+    #[test]
+    fn a_marker_pushed_to_the_start_of_a_line_counts_as_escaped() {
+        for column in 70..80 {
+            let mut input = vec![b'a'; column];
+            input.push(b'F');
+            input.extend_from_slice(&[b'a'; 80]);
+            let mut encoded = Vec::new();
+            encode(&input, true, b"\r\n", &mut encoded);
+
+            for line in encoded.split(|byte| *byte == b'\n') {
+                assert!(line.strip_suffix(b"\r").unwrap_or(line).len() <= 76);
+            }
+
+            assert_eq!(decoded(&encoded), (input, true));
         }
     }
 
