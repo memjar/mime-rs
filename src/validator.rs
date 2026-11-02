@@ -54,7 +54,8 @@ pub enum MimeValidateRule {
     Unreadable(MimeHeaderForm),
     /// A field written in the obsolete syntax.
     Obsolete(MimeHeaderForm),
-    /// A mailbox with no address, or an address with no `@`.
+    /// A mailbox with no address, or an address that is not a local part,
+    /// an `@` and an unquoted domain.
     Address,
     /// A message identifier that is not `id-left "@" id-right`.
     MessageId,
@@ -391,6 +392,14 @@ fn check_model(
     }
 }
 
+/// Whether an address reads as an RFC 5322 3.4.1 addr-spec: a local part,
+/// an `@`, and a domain that is no quoted string.
+fn is_addr_spec(address: &str) -> bool {
+    address.rsplit_once('@').is_some_and(|(local, domain)| {
+        !local.is_empty() && !domain.is_empty() && !domain.contains('"')
+    })
+}
+
 /// The message field rules (RFC 5322 3.6) at the top of a message, as
 /// advisories for a nested one, and the value rules of every known field.
 pub(crate) fn check_fields(
@@ -424,7 +433,7 @@ pub(crate) fn check_fields(
                 let bare = list
                     .mailboxes()
                     .any(|mailbox| match mailbox.address.as_deref() {
-                        Some(address) => !address.contains('@') && !(path && address.is_empty()),
+                        Some(address) => !is_addr_spec(address) && !(path && address.is_empty()),
                         None => !path,
                     });
 

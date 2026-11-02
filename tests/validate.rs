@@ -143,6 +143,48 @@ fn the_field_grammar() {
         MimeValidateRule::Address,
         Violation,
     );
+
+    for address in ["@example.com", "bob@", "bob@\"example.com\""] {
+        breaks(
+            &GOOD.replace("bob@example.com", address),
+            MimeValidateRule::Address,
+            Violation,
+        );
+    }
+
+    for date in [
+        "Sat, 31 Oct 2026 12:0:00 +0100",
+        "Sat, 31 Oct 2026 12:00:00 +01",
+        "Sat, 31 Oct 2026 12:00:00 +0199",
+        "Sat, 31 Oct 2026 12:00:00 im-8b",
+        "Sat, 31 Oct 2026 12:00:00",
+        "Sat 31 Oct 2026 12:00:00 +0100",
+        "Sat, 31 Oct 0001 12:00:00 +0100",
+    ] {
+        breaks(
+            &GOOD.replace("Sat, 31 Oct 2026 12:00:00 +0100", date),
+            MimeValidateRule::Unreadable(mime::header::spec::MimeHeaderForm::Date),
+            Violation,
+        );
+    }
+
+    // NOTE: a year past any integer still reads without overflow.
+    breaks(
+        &GOOD.replace("2026", "99999999999999999999999"),
+        MimeValidateRule::Unreadable(mime::header::spec::MimeHeaderForm::Date),
+        Violation,
+    );
+
+    for date in [
+        "Sat, 31 Oct 2026 12:00:00 +0100 (CET)",
+        "31 Oct 2026 12:00 -0000",
+    ] {
+        assert_eq!(
+            rules(&GOOD.replace("Sat, 31 Oct 2026 12:00:00 +0100", date)),
+            [],
+            "{date}"
+        );
+    }
     breaks(
         &GOOD.replace("<1@example.com>", "<no-domain>"),
         MimeValidateRule::MessageId,

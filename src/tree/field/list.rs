@@ -139,8 +139,9 @@ fn push_id(id: &[u8], ids: &mut Vec<String>) {
 
 fn push_item(item: &[u8], items: &mut Vec<String>) {
     let text = rfc2047::decode_text(item);
+    let text = text.trim_matches([' ', '\t']);
 
     if !text.is_empty() {
-        items.push(text.into_owned());
+        items.push(String::from(text));
     }
 }

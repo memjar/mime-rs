@@ -27,7 +27,7 @@ Each known field SHALL default to one form: text for Subject, Comments, Content-
 
 ### Requirement: Unstructured text
 
-The text form SHALL unfold the value (RFC 5322 2.2.3), decode every RFC 2047 encoded word, drop the linear whitespace between two adjacent encoded words (RFC 2047 6.2), collapse a run of blanks holding a fold to one space, and trim leading and trailing blanks. Adjacent encoded words of one charset SHALL be joined before transcoding, so a character split across two words survives. A malformed encoded word, or one whose encoding or charset the build cannot decode, SHALL stay literal. An empty or blank value SHALL read as empty text.
+The text form SHALL unfold the value (RFC 5322 2.2.3), decode every RFC 2047 encoded word, drop the linear whitespace between two adjacent encoded words (RFC 2047 6.2), collapse a run of blanks holding a fold to one space, and trim the blanks at the ends of the value; the blanks an encoded word decodes to SHALL stay, being text. Adjacent encoded words of one charset SHALL be joined before transcoding, so a character split across two words survives. A malformed encoded word, or one whose encoding or charset the build cannot decode, SHALL stay literal, and so SHALL a word whose charset is no ASCII token (RFC 2047 2), dots allowed as `ANSI_X3.4-1968` is written. An empty or blank value SHALL read as empty text.
 
 #### Scenario: A character split across two words
 - GIVEN `Subject: =?utf-8?B?w6k=?= =?utf-8?B?w6k=?=` holding one two-byte character in each word, and the same character split byte by byte across two words
@@ -49,7 +49,7 @@ The message ids form SHALL read every `msg-id` of the value in order, without it
 
 ### Requirement: Dates
 
-The date form SHALL read an RFC 5322 3.3 date-time with the RFC 5322 4.3 obsolete syntax: an optional day name, two-digit years (below 50 in the 2000s, otherwise in the 1900s), three-digit years (plus 1900), optional seconds, and the named and military zones as RFC 5322 4.3 directs. A date naming no real calendar day SHALL read as `Raw`. `MimeDateTime` SHALL convert to and from Unix seconds and to RFC 3339 text, and display as RFC 5322 writes it.
+The date form SHALL read an RFC 5322 3.3 date-time with the RFC 5322 4.3 obsolete syntax: an optional day name, two-digit years (below 50 in the 2000s, otherwise in the 1900s), three-digit years (plus 1900), four-digit years below 100 read as two-digit ones (a zero-padded `0001` reads 2001), optional seconds, and the named and military zones as RFC 5322 4.3 directs. A date naming no real calendar day SHALL read as `Raw`. `MimeDateTime` SHALL convert to and from Unix seconds and to RFC 3339 text, and display as RFC 5322 writes it.
 
 #### Scenario: An obsolete zone at the end of the input
 - GIVEN a block whose last line is `Date: Thu, 13 Feb 1969 23:32 EST` with no line break

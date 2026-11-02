@@ -19,6 +19,7 @@ MIME message parser, validator, editor and builder library for Rust
 
 - **Byte-faithful editing**: an edit rewrites what it names, every other byte comes back unchanged.
 - **Forgiving parser**: any bytes parse, round-trip unchanged, with every recovery reported.
+- **Checked against mail-parser**: over the test corpus, half a million real messages (Enron, Apache lists) and fuzzed bytes, it reads what mail-parser 1.0 reads, but where a documented rule says why not.
 - **Lazy**: parse the header block alone, split the body or decode a part only when asked.
 - **I/O-free**: parsing is a coroutine handing its byte searches to the caller (memchr by default).
 - **Strict building**: messages checked against the standard and written deterministically.

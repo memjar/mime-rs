@@ -28,7 +28,7 @@ The validator SHALL report, at the top of a message (RFC 5322 3.6): a missing Da
 
 ### Requirement: The field values
 
-The validator SHALL report as violations a known structured field whose value does not read in its form, a date naming no real day, a mailbox with no address or an address with no `@` (Return-Path's null path `<>` alone excepted), a From or Sender naming no mailbox (RFC 5322 3.6.2), and a message identifier that is not `id-left "@" id-right`; a date in the obsolete syntax (a named or military zone, a year of fewer than four digits) SHALL be an advisory.
+The validator SHALL report as violations a known structured field whose value does not read in its form, a date naming no real day, a date outside the RFC 5322 3.3 grammar and its 4.3 obsolete forms (time fields of two digits, a zone of `+` or `-` and four digits whose minutes are below 60 or a named or military one, a four-digit year from 1900, a comma after the day name, nothing after the zone but comments), a mailbox with no address or an address that is not a local part, an `@` and an unquoted domain (Return-Path's null path `<>` alone excepted), a From or Sender naming no mailbox (RFC 5322 3.6.2), and a message identifier that is not `id-left "@" id-right`; a date in the obsolete syntax (a named or military zone, a year of two or three digits, a comment inside, a missing blank between its parts) SHALL be an advisory.
 
 ### Requirement: The wire
 

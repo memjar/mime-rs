@@ -9,9 +9,12 @@ use core::ops::Range;
 
 use ::memchr::{memchr_iter, memmem};
 
-use crate::tree::scan::scalar::is_empty_line;
+use crate::tree::scan::scalar::empty_line;
 
 /// See [`scalar::field_ends`](crate::tree::scan::scalar::field_ends).
+// NOTE: inlined into the answer loop, as it was before the wider empty line
+// grew it past the threshold.
+#[inline]
 pub fn field_ends(input: &[u8], range: Range<usize>, out: &mut Vec<usize>) {
     let end = range.end.min(input.len());
     let Some(hay) = input.get(range.start..end) else {
@@ -28,7 +31,7 @@ pub fn field_ends(input: &[u8], range: Range<usize>, out: &mut Vec<usize>) {
 
         out.push(i);
 
-        if is_empty_line(input, i + 1, end) {
+        if empty_line(input, i + 1, end).is_some() {
             return;
         }
     }

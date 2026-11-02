@@ -109,7 +109,7 @@ impl Walk {
 
         for item in &entity.header.items {
             match item {
-                MimeHeaderItem::Field(field) => self.field(here, field),
+                MimeHeaderItem::Field(field) => self.field(here, field, nested),
                 MimeHeaderItem::Opaque(line) => self.lines(here, None, line, true),
             }
         }
@@ -205,7 +205,7 @@ impl Walk {
         }
     }
 
-    fn field(&mut self, entity: usize, field: &MimeHeaderField<'_>) {
+    fn field(&mut self, entity: usize, field: &MimeHeaderField<'_>, nested: bool) {
         let name = field.name_str();
         let line = field.line();
 
@@ -227,13 +227,31 @@ impl Walk {
             .parse::<MimeHeaderKind>()
             .map_or(MimeHeaderForm::Raw, |kind| kind.spec().form);
 
-        if form == MimeHeaderForm::Date && obsolete_date(field.value()) {
-            self.push(
-                entity,
-                Some(&name),
-                MimeValidateRule::Obsolete(form),
-                MimeSeverity::Advisory,
-            );
+        // NOTE: a date the reader cannot make out is already reported by the
+        // model rules, so the syntax adds only what reads despite it.
+        if form == MimeHeaderForm::Date {
+            let readable = matches!(field.read(), MimeHeaderValue::Date(date) if date.is_valid());
+
+            match date_syntax(field.value()) {
+                DateSyntax::Current => {}
+                DateSyntax::Obsolete => self.push(
+                    entity,
+                    Some(&name),
+                    MimeValidateRule::Obsolete(form),
+                    MimeSeverity::Advisory,
+                ),
+                DateSyntax::Invalid if readable => self.push(
+                    entity,
+                    Some(&name),
+                    MimeValidateRule::Unreadable(form),
+                    if nested {
+                        MimeSeverity::Advisory
+                    } else {
+                        MimeSeverity::Violation
+                    },
+                ),
+                DateSyntax::Invalid => {}
+            }
         }
 
         if misplaced_words(field.value(), form) {
@@ -417,26 +435,201 @@ impl Lines {
     }
 }
 
-/// Whether a date uses the obsolete syntax (RFC 5322 4.3): a year of
-/// fewer than four digits, or a named or military zone.
-fn obsolete_date(raw: &[u8]) -> bool {
-    let text = String::from_utf8_lossy(raw);
-    let words: Vec<&str> = text
-        .split(|c: char| c.is_whitespace() || c == ',')
-        .filter(|word| !word.is_empty())
-        .collect();
+/// How a Date value stands against RFC 5322 3.3.
+enum DateSyntax {
+    /// The current syntax of RFC 5322 3.3.
+    Current,
+    /// The obsolete syntax of RFC 5322 4.3: a two- or three-digit year, a
+    /// named or military zone, a comment or blanks inside.
+    Obsolete,
+    /// Neither: time fields not of two digits, a zone neither `+hhmm` nor
+    /// named, a four-digit year before 1900, missing or stray parts.
+    Invalid,
+}
 
-    let zone = words.iter().rev().find(|word| !word.starts_with('('));
-    let alpha_zone = zone.is_some_and(|zone| zone.chars().all(|c| c.is_ascii_alphabetic()));
-    let short_year = words.iter().any(|word| {
-        word.chars().all(|c| c.is_ascii_digit())
-            && (2..=3).contains(&word.len())
-            && !word.contains(':')
-    }) && !words
-        .iter()
-        .any(|word| word.len() == 4 && word.chars().all(|c| c.is_ascii_digit()));
+/// Reads a Date value against the RFC 5322 3.3 date-time and its RFC 5322
+/// 4.3 obsolete forms, names compared ASCII case-insensitively.
+fn date_syntax(raw: &[u8]) -> DateSyntax {
+    const DAYS: [&[u8]; 7] = [b"mon", b"tue", b"wed", b"thu", b"fri", b"sat", b"sun"];
+    const MONTHS: [&[u8]; 12] = [
+        b"jan", b"feb", b"mar", b"apr", b"may", b"jun", b"jul", b"aug", b"sep", b"oct", b"nov",
+        b"dec",
+    ];
+    const ZONES: [&[u8]; 10] = [
+        b"ut", b"gmt", b"est", b"edt", b"cst", b"cdt", b"mst", b"mdt", b"pst", b"pdt",
+    ];
 
-    alpha_zone || short_year
+    let mut date = DateCursor {
+        raw,
+        at: 0,
+        obsolete: false,
+    };
+    let named =
+        |word: &[u8], names: &[&[u8]]| names.iter().any(|name| word.eq_ignore_ascii_case(name));
+
+    let parsed = (|| {
+        date.cfws(false)?;
+
+        if date.peek().is_some_and(|byte| byte.is_ascii_alphabetic()) {
+            if !named(date.run(u8::is_ascii_alphabetic), &DAYS) {
+                return None;
+            }
+
+            date.cfws(false)?;
+            date.eat(b',')?;
+            date.cfws(false)?;
+        }
+
+        if !(1..=2).contains(&date.run(u8::is_ascii_digit).len()) {
+            return None;
+        }
+
+        date.cfws(true)?;
+
+        if !named(date.run(u8::is_ascii_alphabetic), &MONTHS) {
+            return None;
+        }
+
+        date.cfws(true)?;
+        let year = date.run(u8::is_ascii_digit);
+
+        match year.len() {
+            2..=3 => date.obsolete = true,
+            4.. if year.iter().fold(0u32, |n, digit| {
+                n.saturating_mul(10).saturating_add(u32::from(digit - b'0'))
+            }) >= 1900 => {}
+            _ => return None,
+        }
+
+        date.cfws(true)?;
+        date.digits(2)?;
+
+        for field in 0..2 {
+            let before = (date.at, date.obsolete);
+            date.cfws(false)?;
+
+            if date.peek() != Some(b':') {
+                // NOTE: the seconds are optional, the minutes are not; the
+                // blanks looked past belong to the zone.
+                if field == 0 {
+                    return None;
+                }
+
+                (date.at, date.obsolete) = before;
+                break;
+            }
+
+            date.at += 1;
+            date.cfws(false)?;
+            date.digits(2)?;
+        }
+
+        date.cfws(true)?;
+
+        match date.peek()? {
+            b'+' | b'-' => {
+                date.at += 1;
+                let zone = date.run(u8::is_ascii_digit);
+
+                // NOTE: hours then minutes, the minutes below 60.
+                if zone.len() != 4 || zone[2] > b'5' {
+                    return None;
+                }
+            }
+            _ => {
+                let zone = date.run(u8::is_ascii_alphabetic);
+                let military = zone.len() == 1 && !zone.eq_ignore_ascii_case(b"j");
+
+                if !(named(zone, &ZONES) || military) {
+                    return None;
+                }
+
+                date.obsolete = true;
+            }
+        }
+
+        // NOTE: a comment may follow the zone in the current syntax.
+        let obsolete = date.obsolete;
+        date.cfws(false)?;
+        date.obsolete = obsolete;
+        date.at.eq(&raw.len()).then_some(())
+    })();
+
+    match parsed {
+        None => DateSyntax::Invalid,
+        Some(()) if date.obsolete => DateSyntax::Obsolete,
+        Some(()) => DateSyntax::Current,
+    }
+}
+
+/// A cursor over a Date value, noting whether it met the obsolete syntax.
+struct DateCursor<'r> {
+    raw: &'r [u8],
+    at: usize,
+    obsolete: bool,
+}
+
+impl<'r> DateCursor<'r> {
+    fn peek(&self) -> Option<u8> {
+        self.raw.get(self.at).copied()
+    }
+
+    fn eat(&mut self, byte: u8) -> Option<()> {
+        (self.peek() == Some(byte)).then(|| self.at += 1)
+    }
+
+    fn run(&mut self, keep: fn(&u8) -> bool) -> &'r [u8] {
+        let start = self.at;
+
+        while self.raw.get(self.at).is_some_and(keep) {
+            self.at += 1;
+        }
+
+        &self.raw[start..self.at]
+    }
+
+    fn digits(&mut self, count: usize) -> Option<()> {
+        (self.run(u8::is_ascii_digit).len() == count).then_some(())
+    }
+
+    /// Skips blanks, folds and comments, `None` on an unterminated comment;
+    /// a comment is the obsolete syntax, and so is no blank where `needed`.
+    fn cfws(&mut self, needed: bool) -> Option<()> {
+        let start = self.at;
+
+        loop {
+            match self.peek() {
+                Some(b' ' | b'\t' | b'\r' | b'\n') => self.at += 1,
+                Some(b'(') => {
+                    let mut depth = 0usize;
+
+                    loop {
+                        match self.peek()? {
+                            b'(' => depth += 1,
+                            b')' => depth -= 1,
+                            b'\\' => self.at += 1,
+                            _ => {}
+                        }
+
+                        self.at += 1;
+
+                        if depth == 0 {
+                            break;
+                        }
+                    }
+
+                    self.obsolete = true;
+                }
+                _ => break,
+            }
+        }
+
+        if needed && self.at == start {
+            self.obsolete = true;
+        }
+
+        Some(())
+    }
 }
 
 /// Whether a value holds an encoded word RFC 2047 forbids: longer than 75

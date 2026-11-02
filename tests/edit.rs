@@ -313,6 +313,79 @@ fn parts_are_inserted_removed_and_moved_within_their_multipart() {
 }
 
 #[test]
+fn a_part_inserted_beside_a_delimiter_cut_at_its_end_starts_on_a_line() {
+    // NOTE: the inner multipart's last delimiter ends no line of its own,
+    // the outer delimiter taking the line ending after it.
+    let input = concat!(
+        "Content-Type: multipart/mixed; boundary=outer\n",
+        "\n",
+        "--outer\n",
+        "Content-Type: multipart/alternative; boundary=inner\n",
+        "\n",
+        "--inner\n",
+        "Content-Type: text/plain\n",
+        "\n",
+        "one\n",
+        "--inner\n",
+        "--outer--\n",
+    );
+    let mut cst = MimeCst::parse(input.as_bytes());
+    cst.insert_part(1, 0, &part("caf\u{e9}"), &opts()).unwrap();
+
+    let bytes = cst.to_bytes();
+    let reread = MimeCst::parse(&bytes);
+
+    assert!(
+        String::from_utf8_lossy(&bytes)
+            .contains("\n--inner\nContent-Type: text/plain; charset=utf-8\n")
+    );
+    assert_eq!(reread.decode(), cst.decode());
+}
+
+#[test]
+fn a_field_removed_after_a_line_holding_no_field_takes_its_folding_blanks() {
+    // NOTE: the Subject folds after a line holding no field, which keeps the
+    // blank before its name; left alone, that blank would fold the empty line
+    // after it into the header block.
+    let input = "Received: x\nGarbage line\n Subject: x\n\nbody";
+    let mut cst = MimeCst::parse(input.as_bytes());
+    cst.header_mut(0).unwrap().remove_all("Subject").unwrap();
+
+    let bytes = cst.to_bytes();
+    let reread = MimeCst::parse(&bytes);
+
+    assert_eq!(bytes, b"Received: x\nGarbage line\n\nbody");
+    assert_eq!(reread.decode(), cst.decode());
+}
+
+#[test]
+fn a_content_edit_in_a_multipart_split_at_a_fallback_delimiter_is_refused() {
+    // NOTE: the inner multipart reuses the outer boundary and opens its part
+    // on a delimiter found mid-line; an edit giving that delimiter a line of
+    // its own would hand it to the outer multipart.
+    let input = concat!(
+        "Content-Type: multipart/mixed; boundary=1\n",
+        "\n",
+        "--1\n",
+        "Content-Type: multipart/mixed; boundary=1\n",
+        "\n",
+        " --1\n",
+        "--1--\n",
+    );
+    let mut cst = MimeCst::parse(input.as_bytes());
+
+    assert!(matches!(
+        cst.replace_content(2, b"new", None, &opts()),
+        Err(MimeEditError::Damaged)
+    ));
+    assert!(matches!(
+        cst.replace_text(2, "new", &opts()),
+        Err(MimeEditError::Damaged)
+    ));
+    assert_eq!(cst.to_bytes(), input.as_bytes());
+}
+
+#[test]
 fn an_inserted_part_holding_the_boundary_regenerates_it() {
     let mut cst = MimeCst::parse(DRAFT.as_bytes());
     cst.insert_part(0, 9, &part("--b1\r\nnot a delimiter\r\n"), &opts())

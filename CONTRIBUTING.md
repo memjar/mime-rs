@@ -52,6 +52,17 @@ Integration tests sweep a corpus of real and adversarial messages under tests/co
 
 When this crate reads a fixture differently from mail-parser on purpose, add a row to tests/corpus/divergence.tsv (fixture, path, our reading, reason, the reason citing the RFC); a field vector read differently goes to tests/vectors/divergence.tsv. Never edit a frozen answer.
 
+## The differential oracle
+
+tests/common/differential.rs reads one input through this crate and through mail-parser 1.0 and compares the part trees, the decoded content and decode problems, the decoded header values and the body lists. A difference made on purpose is let through by a named rule (`Rule`), whose doc comment states the reason; header values are compared only where the validator finds their syntax sound and their RFC grammar holds, since on malformed values both parsers recover by policy. The oracle runs over the vendored corpus (tests/differential.rs), over arbitrary bytes (the fuzz crate's `differential` target), and over the fetched corpora:
+
+```sh
+scripts/fetch-corpora.sh   # Enron, Apache lists, Stalwart, mail-auth, Hunny; about 3 GB
+cargo test --release --all-features --test fetched -- --ignored
+```
+
+A difference the oracle reports is a bug to fix, with a test failing on the old code, or a deliberate reading to record as a rule with its reason, and as a divergence row when a fixture shows it.
+
 New inputs are also worth handing to the fuzzers, described in [fuzz/README.md](./fuzz/README.md); a finding becomes a case in the test file of its target before it is fixed.
 
 ## Examples and benchmarks

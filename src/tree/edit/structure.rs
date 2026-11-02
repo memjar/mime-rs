@@ -380,16 +380,24 @@ impl<'a> MimeEntity<'a> {
 /// sibling's as written, else the line ending, the boundary and the line
 /// ending.
 fn sibling_delimiter(multipart: &MimeMultipart<'_>, boundary: &str, eol: &[u8]) -> Vec<u8> {
-    multipart
+    let mut line = multipart
         .parts
         .get(1)
         .map(|part| part.delimiter.to_vec())
         .unwrap_or_else(|| {
             let mut line = eol.to_vec();
             line.extend_from_slice(format!("--{boundary}").as_bytes());
-            line.extend_from_slice(eol);
             line
-        })
+        });
+
+    // NOTE: a delimiter cut at the end of its multipart, an enclosing
+    // delimiter taking the line ending after it, ends no line of its own,
+    // where the part copied after it needs one.
+    if !line.ends_with(b"\n") {
+        line.extend_from_slice(eol);
+    }
+
+    line
 }
 
 /// Gives every delimiter line past the first, and the close delimiter

@@ -1,8 +1,9 @@
 //! # Date reader
 //!
 //! The RFC 5322 3.3 date-time with the RFC 5322 4.3 obsolete syntax, read
-//! liberally: an optional day name, two- and three-digit years, optional
-//! seconds, named and military zones, comments anywhere.
+//! liberally: an optional day name, two- and three-digit years, four-digit
+//! years below 100 read as two-digit ones, optional seconds, named and
+//! military zones, comments anywhere.
 
 use crate::{tree::field::lex::Lexer, value::datetime::MimeDateTime};
 
@@ -94,10 +95,13 @@ pub fn parse_date(value: &[u8]) -> Option<MimeDateTime> {
             {
                 month = Some(n as u8);
             } else if year.is_none() && (day.is_some() || month.is_some()) {
+                // NOTE: a year below 100 written with four digits or more is
+                // a two-digit year padded with zeros, as `0001` in mail
+                // whose software meant 2001.
                 year = Some(match token.len() {
-                    1 | 2 if n < 50 => n + 2000,
-                    1 | 2 => n + 1900,
                     3 => n + 1900,
+                    _ if n < 50 => n + 2000,
+                    _ if n < 100 => n + 1900,
                     _ => n,
                 });
             }
@@ -212,6 +216,16 @@ mod tests {
 
         let date = parse_date(b"1 Jan 99 00:00:00 GMT (comment)").expect("a date");
         assert_eq!(date.year, 1999);
+    }
+
+    #[test]
+    fn a_zero_padded_two_digit_year_reads_as_one() {
+        let year = |value: &[u8]| parse_date(value).expect("a date").year;
+
+        assert_eq!(year(b"Wed, 21 Dec 0001 22:31:43 -0800 (PST)"), 2001);
+        assert_eq!(year(b"Sat, 6 Aug 0099 00:06:06 -0800"), 1999);
+        assert_eq!(year(b"Sat, 6 Aug 101 00:06:06 -0800"), 2001);
+        assert_eq!(year(b"Sat, 6 Aug 1899 00:06:06 -0800"), 1899);
     }
 
     #[test]

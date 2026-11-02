@@ -134,12 +134,37 @@ impl<'a> MimeHeaderBlock<'a> {
         structural(name)?;
 
         let before = self.fields().count();
+        let mut kept: Vec<MimeHeaderItem<'a>> = Vec::with_capacity(self.items.len());
 
-        self.items.retain(|item| match item {
-            MimeHeaderItem::Field(field) => !field.is(name),
-            MimeHeaderItem::Opaque(_) => true,
-        });
+        for item in self.items.drain(..) {
+            if !matches!(&item, MimeHeaderItem::Field(field) if field.is(name)) {
+                kept.push(item);
+                continue;
+            }
 
+            // NOTE: a field folded after a line holding no field leaves that
+            // opaque line its folding blanks; they go with the field, else
+            // they would fold the line after it in.
+            if let Some(MimeHeaderItem::Opaque(line)) = kept.last_mut() {
+                let tail = line
+                    .iter()
+                    .rposition(|byte| *byte == b'\n')
+                    .map_or(0, |lf| lf + 1);
+
+                if line[tail..].iter().all(|byte| matches!(byte, b' ' | b'\t')) {
+                    match line {
+                        Cow::Borrowed(bytes) => *bytes = &bytes[..tail],
+                        Cow::Owned(bytes) => bytes.truncate(tail),
+                    }
+                }
+            }
+
+            if matches!(kept.last(), Some(MimeHeaderItem::Opaque(line)) if line.is_empty()) {
+                kept.pop();
+            }
+        }
+
+        self.items = kept;
         let after = self.fields().count();
 
         if after == 0 {
@@ -383,7 +408,7 @@ impl MimeHeaderBlock<'_> {
             && let Some(MimeHeaderItem::Opaque(line)) = self.items.last()
             && line
                 .iter()
-                .all(|byte| matches!(byte, b' ' | b'\t' | b'\r' | b'\n'))
+                .all(|byte| matches!(byte, b' ' | b'\t' | b'\r' | b'\x0c' | b'\n'))
         {
             let mut end = line.to_vec();
 

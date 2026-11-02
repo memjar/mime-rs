@@ -161,6 +161,7 @@ impl<'a> MimeCst<'a> {
         encoding: Option<&MimeTransferEncoding>,
         opts: &MimeBuildOptions,
     ) -> Result<(), MimeEditError> {
+        self.check_parent(index)?;
         let taken = self.enclosing(index);
         self.entity_mut(index)?
             .replace_content(content, encoding, &taken, opts)?;
@@ -178,9 +179,44 @@ impl<'a> MimeCst<'a> {
         text: &str,
         opts: &MimeBuildOptions,
     ) -> Result<(), MimeEditError> {
+        self.check_parent(index)?;
         let taken = self.enclosing(index);
         self.entity_mut(index)?.replace_text(text, &taken, opts)?;
         self.separate_around(index);
+        Ok(())
+    }
+
+    /// Refuses a content edit in a multipart read through fallback
+    /// delimiters, or with none, as [`prepare`](Self::prepare) refuses a
+    /// structural one: giving the delimiter around the entity a line of its
+    /// own would change how the multipart splits.
+    fn check_parent(&self, index: usize) -> Result<(), MimeEditError> {
+        let Some((path, _)) = self.locate(index) else {
+            return Ok(());
+        };
+
+        let Some((_, parent)) = path.split_last() else {
+            return Ok(());
+        };
+
+        let mut entity = &self.root;
+
+        for &position in parent {
+            entity = match &entity.body {
+                MimeBodyNode::Multipart(multipart) => &multipart.parts[position].entity,
+                MimeBodyNode::Message(nested) => nested,
+                MimeBodyNode::Leaf(_) | MimeBodyNode::Unparsed(_) => return Ok(()),
+            };
+        }
+
+        let damaged = matches!(entity.body, MimeBodyNode::Multipart(_))
+            && (entity.anomalies.contains(MimeAnomaly::FallbackDelimiter)
+                || entity.anomalies.contains(MimeAnomaly::MissingDelimiter));
+
+        if damaged {
+            return Err(MimeEditError::Damaged);
+        }
+
         Ok(())
     }
 

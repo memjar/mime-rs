@@ -24,7 +24,7 @@ stalwart-rfc/008	crlf.structure	encoded message/rfc822 kept as a leaf	a base64 o
 dovecot-malformed/020	lf.part[1].text	unwrapped flowed text	a format=flowed part reads unwrapped (RFC 3676 4.2); mail-parser returns it as written
 dovecot-malformed/021	lf.part[1].text	unwrapped flowed text	a format=flowed part reads unwrapped (RFC 3676 4.2); mail-parser returns it as written
 dovecot-thirdparty/015	lf.part[1].text	unwrapped flowed text	a format=flowed part reads unwrapped (RFC 3676 4.2); mail-parser returns it as written
-dovecot-thirdparty/002	lf.part[2].problems	malformed charset and transfer encoding	a ? in a base64 body is reported as malformed (RFC 2045 6.8); mail-parser skips it silently
+dovecot-thirdparty/002	lf.part[2].problems	malformed charset and transfer encoding	text after the base64 padding is reported as malformed (RFC 2045 6.8); mail-parser stops at the padding silently
 stalwart-regressions/utf7-terminators	lf.part[1].text	UTF-7 kept as written, charset reported unknown	UTF-7 (RFC 2152) is outside the WHATWG encodings encoding_rs implements, so it reads as UTF-8 (D3); mail-parser decodes it
 stalwart-regressions/utf7-terminators	lf.part[1].problems	UTF-7 kept as written, charset reported unknown	UTF-7 (RFC 2152) is outside the WHATWG encodings encoding_rs implements, so it reads as UTF-8 (D3); mail-parser decodes it
 stalwart-regressions/utf7-terminators	lf.part[2].text	UTF-7 kept as written, charset reported unknown	UTF-7 (RFC 2152) is outside the WHATWG encodings encoding_rs implements, so it reads as UTF-8 (D3); mail-parser decodes it
@@ -40,7 +40,7 @@ stalwart-regressions/utf7-terminators	lf.part[6].problems	UTF-7 kept as written,
 dovecot-malformed/020	crlf.part[1].text	unwrapped flowed text	a format=flowed part reads unwrapped (RFC 3676 4.2); mail-parser returns it as written
 dovecot-malformed/021	crlf.part[1].text	unwrapped flowed text	a format=flowed part reads unwrapped (RFC 3676 4.2); mail-parser returns it as written
 dovecot-thirdparty/015	crlf.part[1].text	unwrapped flowed text	a format=flowed part reads unwrapped (RFC 3676 4.2); mail-parser returns it as written
-dovecot-thirdparty/002	crlf.part[2].problems	malformed charset and transfer encoding	a ? in a base64 body is reported as malformed (RFC 2045 6.8); mail-parser skips it silently
+dovecot-thirdparty/002	crlf.part[2].problems	malformed charset and transfer encoding	text after the base64 padding is reported as malformed (RFC 2045 6.8); mail-parser stops at the padding silently
 stalwart-regressions/utf7-terminators	crlf.part[1].text	UTF-7 kept as written, charset reported unknown	UTF-7 (RFC 2152) is outside the WHATWG encodings encoding_rs implements, so it reads as UTF-8 (D3); mail-parser decodes it
 stalwart-regressions/utf7-terminators	crlf.part[1].problems	UTF-7 kept as written, charset reported unknown	UTF-7 (RFC 2152) is outside the WHATWG encodings encoding_rs implements, so it reads as UTF-8 (D3); mail-parser decodes it
 stalwart-regressions/utf7-terminators	crlf.part[2].text	UTF-7 kept as written, charset reported unknown	UTF-7 (RFC 2152) is outside the WHATWG encodings encoding_rs implements, so it reads as UTF-8 (D3); mail-parser decodes it

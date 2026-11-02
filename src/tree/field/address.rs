@@ -320,7 +320,7 @@ fn phrase(words: &[Word]) -> String {
         }
     }
 
-    rfc2047::decode_text(&raw).into_owned()
+    String::from(rfc2047::decode_text(&raw).trim_matches([' ', '\t']))
 }
 
 fn name(phrase: String, comments: &[String]) -> Option<String> {
@@ -451,7 +451,7 @@ fn comment_text(raw: &[u8]) -> String {
         }
     }
 
-    rfc2047::decode_text(&unescaped).into_owned()
+    String::from(rfc2047::decode_text(&unescaped).trim_matches([' ', '\t']))
 }
 
 #[cfg(test)]

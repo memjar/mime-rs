@@ -209,7 +209,7 @@ fn flush(label: &Option<String>, encoded: &mut Vec<u8>, out: &mut String) {
 
 fn plain(value: &[u8]) -> String {
     if rfc2047::contains_word_start(value) {
-        return rfc2047::decode_text(value).into_owned();
+        return String::from(rfc2047::decode_text(value).trim_matches([' ', '\t']));
     }
 
     String::from_utf8_lossy(value).into_owned()

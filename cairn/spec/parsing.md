@@ -8,7 +8,7 @@ status: current
 
 The byte-faithful side of the crate, gated behind the `parser` feature. `MimeCst` models a message as its root `MimeEntity`, a header block and a body, every leaf a `Cow` borrowed from the input until an edit replaces it. It knows nothing of what a field means beyond what structure needs: it reproduces the wire.
 
-Parsing is maximally liberal, per Postel's law: every input is a message, and every recovery is recorded rather than refused. The behaviour on malformed input follows mail-parser 1.0's frozen answers in tests/corpus, except where tests/corpus/divergence.tsv records a deliberate difference and its reason.
+Parsing is maximally liberal, per Postel's law: every input is a message, and every recovery is recorded rather than refused. The behaviour on malformed input follows mail-parser 1.0's frozen answers in tests/corpus, except where tests/corpus/divergence.tsv records a deliberate difference and its reason. On any input, the differential oracle (tests/common/differential.rs) holds this crate to mail-parser 1.0's live reading, each deliberate difference a named rule with its reason.
 
 ### Requirement: Round-trip fidelity
 
@@ -38,7 +38,7 @@ A line SHALL end at LF, a CR immediately before it being part of the ending. A b
 
 ### Requirement: The header block
 
-A header block SHALL run from the start of an entity to its first empty line (LF or CRLF alone), which belongs to the block as its terminator; a first line holding only blanks SHALL also be taken as the terminator of an empty block. A field SHALL be a logical line, a physical line together with every following line starting with SP or HTAB (RFC 5322 2.2.3), a line of blanks continuing the field before it. Blanks between a field name and its colon SHALL stay on the wire and out of the name (the RFC 5322 4.5 obsolete syntax), and leading colons SHALL belong to the name.
+A header block SHALL run from the start of an entity to its first empty line, which belongs to the block as its terminator: a line continuing no field and holding nothing but blanks, carriage returns and form feeds before its line feed, so `\n`, `\r\n`, and the `\r\r\n` of a message whose line endings were converted twice. A first line holding only blanks SHALL also be taken as the terminator of an empty block. A field SHALL be a logical line, a physical line together with every following line starting with SP or HTAB (RFC 5322 2.2.3), a line of blanks continuing the field before it. Blanks between a field name and its colon SHALL stay on the wire and out of the name (the RFC 5322 4.5 obsolete syntax), and leading colons SHALL belong to the name.
 
 A logical line whose first physical line holds no colon SHALL be kept as an opaque item, unless a later physical line of it does, in which case the bytes before that line's content SHALL be the opaque item and the rest the field, so `garbage\n Subject: x` holds a field named `Subject`. An opaque item SHALL round-trip, be reported, and not end the block. A block holding no field at all SHALL be no header block: the entity is all body. A block that reaches the end of its entity with no empty line SHALL end there, flagged.
 
@@ -51,6 +51,11 @@ A logical line whose first physical line holds no colon SHALL be kept as an opaq
 - GIVEN `Subject: a\r\n   \r\nFrom: x\r\n\r\nbody`
 - WHEN it is parsed
 - THEN the block holds two fields and the body reads `body`
+
+#### Scenario: Line endings converted twice
+- GIVEN a multipart message whose every line ends in `\r\r\n`
+- WHEN it is parsed
+- THEN its header block ends on the line `\r\r\n`, its parts are found, and it serializes back to the input
 
 ### Requirement: A field name is never smuggled
 
@@ -134,7 +139,7 @@ Every leaf of a parsed tree SHALL borrow the input, and parsing SHALL copy no in
 
 ### Requirement: The corpus is swept
 
-Every vendored fixture SHALL parse, round-trip byte for byte as written and in its LF and CRLF forms, parse alike through both answerers, and, where it has a frozen answer, carry the structure that answer states (part tree, kinds, header, body and end offsets), unless tests/corpus/divergence.tsv holds a row for that fixture and path with its reason. The fixtures without frozen answers SHALL match mail-parser 1.0's offsets live. Each source directory SHALL assert its fixture count.
+Every vendored fixture SHALL parse, round-trip byte for byte as written and in its LF and CRLF forms, parse alike through both answerers, and, where it has a frozen answer, carry the structure that answer states (part tree, kinds, header, body and end offsets), unless tests/corpus/divergence.tsv holds a row for that fixture and path with its reason. The fixtures without frozen answers SHALL match mail-parser 1.0's offsets live. Each source directory SHALL assert its fixture count. Every fixture SHALL also read, as written and in both forms, as mail-parser 1.0 reads it live, but where a rule of the differential oracle (tests/common/differential.rs) records a deliberate difference and its reason. The fetched corpora (scripts/fetch-corpora.sh) SHALL be swept the same way by an ignored test, which also checks the round trip and the answerers, and the fuzz crate's `differential` target SHALL run the oracle over arbitrary bytes.
 
 ### Requirement: Structure is parsed as deep as asked
 

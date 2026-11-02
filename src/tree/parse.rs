@@ -68,7 +68,7 @@ use crate::{
             value,
         },
         header::{MimeHeaderBlock, MimeHeaderField, MimeHeaderItem},
-        scan::scalar::is_empty_line,
+        scan::scalar::empty_line,
     },
     value::transfer_encoding::MimeTransferEncoding,
 };
@@ -272,7 +272,7 @@ impl<'a> MimeParse<'a> {
 
         // NOTE: only a line starting with a blank or a line ending can be
         // empty, so only such a line is scanned.
-        let maybe_blank = matches!(first.first(), Some(b' ' | b'\t' | b'\r' | b'\n'));
+        let maybe_blank = matches!(first.first(), Some(b' ' | b'\t' | b'\r' | b'\x0c' | b'\n'));
         let line_end = if maybe_blank {
             first.iter().position(|byte| *byte == b'\n')
         } else {
@@ -282,7 +282,7 @@ impl<'a> MimeParse<'a> {
         let blank_line = maybe_blank
             && first_line
                 .iter()
-                .all(|byte| matches!(byte, b' ' | b'\t' | b'\r' | b'\n'));
+                .all(|byte| matches!(byte, b' ' | b'\t' | b'\r' | b'\x0c' | b'\n'));
 
         if first.is_empty() || (blank_line && line_end.is_some()) {
             current(&mut self.root, self.task.depth).header.end = Cow::Borrowed(first_line);
@@ -329,10 +329,9 @@ impl<'a> MimeParse<'a> {
             push_items(&input[pos..=at], &mut header.items, &mut anomalies);
             pos = at + 1;
 
-            if is_empty_line(input, pos, end) {
-                let len = if input[pos] == b'\n' { 1 } else { 2 };
-                header.end = Cow::Borrowed(&input[pos..pos + len]);
-                pos += len;
+            if let Some(line_end) = empty_line(input, pos, end) {
+                header.end = Cow::Borrowed(&input[pos..line_end]);
+                pos = line_end;
                 terminated = true;
             }
         }

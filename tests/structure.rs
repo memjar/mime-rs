@@ -349,3 +349,29 @@ fn a_parse_at_structure_depth_zero_reads_the_root_header_block_alone() {
     cst.expand(MimeParseOptions::default());
     assert_eq!(cst, MimeCst::parse(input));
 }
+
+#[test]
+fn a_line_of_carriage_returns_or_form_feeds_ends_a_header_block() {
+    // NOTE: a message whose CRLF line endings were converted again.
+    let input = concat!(
+        "From: a@example.com\r\r\n",
+        "Content-Type: multipart/mixed; boundary=b\r\r\n",
+        "\r\r\n",
+        "--b\r\r\n",
+        "Content-Type: text/plain\r\r\n",
+        "\r\r\n",
+        "first\r\r\n",
+        "--b--\r\r\n",
+    );
+    let cst = MimeCst::parse(input.as_bytes());
+
+    assert_eq!(cst.root.header.end.as_ref(), b"\r\r\n");
+    assert_eq!(cst.entities().len(), 2);
+    assert_eq!(cst.entities()[1].bytes(), Some(&b"first\r"[..]));
+    assert_eq!(cst.to_bytes(), input.as_bytes());
+
+    let cst = MimeCst::parse(b"Subject: x\n\x0c\nbody\n");
+
+    assert_eq!(cst.root.header.end.as_ref(), b"\x0c\n");
+    assert_eq!(cst.root.bytes(), Some(&b"body\n"[..]));
+}

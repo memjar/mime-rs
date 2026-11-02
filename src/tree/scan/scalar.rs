@@ -25,7 +25,7 @@ pub fn field_ends(input: &[u8], range: Range<usize>, out: &mut Vec<usize>) {
 
         out.push(i);
 
-        if is_empty_line(input, i + 1, end) {
+        if empty_line(input, i + 1, end).is_some() {
             return;
         }
     }
@@ -66,11 +66,30 @@ pub fn find(input: &[u8], range: Range<usize>, needle: &[u8], out: &mut Vec<usiz
     }
 }
 
-/// Whether an empty line (`\n` or `\r\n`) starts at `at`, within `end`.
-pub(crate) fn is_empty_line(input: &[u8], at: usize, end: usize) -> bool {
-    match input.get(at) {
-        Some(b'\n') => at < end,
-        Some(b'\r') => at + 1 < end && input.get(at + 1) == Some(&b'\n'),
-        _ => false,
+/// The end of the empty line starting at `at`, within `end`: a line holding
+/// nothing but blanks, carriage returns and form feeds before its line feed.
+/// Asked only where a line continues no field, so it never starts with a
+/// blank.
+// NOTE: wider than `\n` and `\r\n`, as mail-parser reads it: a message whose
+// CRLF line endings were converted again ends its empty line in `\r\r\n`.
+pub(crate) fn empty_line(input: &[u8], at: usize, end: usize) -> Option<usize> {
+    // NOTE: the first byte alone settles a line that starts a field, the
+    // common case; the rare scan stays out of line, so the answerers that
+    // ask this at every field end still inline into their caller.
+    match *input.get(at)? {
+        b'\n' if at < end => Some(at + 1),
+        b'\r' | b'\x0c' => blank_line_end(input, at, end),
+        _ => None,
     }
+}
+
+/// [`empty_line`] for a line starting with a carriage return or a form feed.
+#[cold]
+#[inline(never)]
+fn blank_line_end(input: &[u8], at: usize, end: usize) -> Option<usize> {
+    let line = input.get(at..end.min(input.len()))?;
+    let lf = line
+        .iter()
+        .position(|byte| !matches!(byte, b' ' | b'\t' | b'\r' | b'\x0c'))?;
+    (line[lf] == b'\n').then_some(at + lf + 1)
 }

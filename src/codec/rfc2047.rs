@@ -15,16 +15,17 @@ use alloc::{borrow::Cow, string::String, vec::Vec};
 use crate::codec::{charset, quoted_printable};
 
 /// Decodes an unstructured value: encoded words decoded, every run of
-/// blanks holding a fold collapsed to one space, the ends trimmed.
+/// blanks holding a fold collapsed to one space, the blanks at its ends
+/// trimmed; the blanks an encoded word decodes to are text and stay.
 ///
 /// Refs: <https://datatracker.ietf.org/doc/html/rfc2047#section-6.2>
 pub fn decode_text(raw: &[u8]) -> Cow<'_, str> {
-    if !contains_word_start(raw) && !raw.iter().any(|byte| matches!(byte, b'\r' | b'\n')) {
-        let trimmed = trim(raw);
+    let raw = trim(raw);
 
-        return match core::str::from_utf8(trimmed) {
+    if !contains_word_start(raw) && !raw.iter().any(|byte| matches!(byte, b'\r' | b'\n')) {
+        return match core::str::from_utf8(raw) {
             Ok(text) => Cow::Borrowed(text),
-            Err(_) => Cow::Owned(String::from_utf8_lossy(trimmed).into_owned()),
+            Err(_) => Cow::Owned(String::from_utf8_lossy(raw).into_owned()),
         };
     }
 
@@ -69,14 +70,7 @@ pub fn decode_text(raw: &[u8]) -> Cow<'_, str> {
 
     flush(&mut pending, &mut out);
     push_literal(&raw[literal_start..], &mut out);
-
-    let trimmed = out.trim_matches(|c| matches!(c, ' ' | '\t'));
-
-    if trimmed.len() == out.len() {
-        Cow::Owned(out)
-    } else {
-        Cow::Owned(String::from(trimmed))
-    }
+    Cow::Owned(out)
 }
 
 /// Decodes one encoded word standing alone (a parameter value written as an
@@ -152,7 +146,9 @@ fn parse_word<'r>(raw: &'r [u8], start: usize, finder: &mut WordEnd) -> Option<W
     let charset_len = rest.iter().position(|byte| *byte == b'?')?;
     let charset = &rest[..charset_len];
 
-    if charset.is_empty() || charset.iter().any(|byte| byte.is_ascii_whitespace()) {
+    // NOTE: a charset is an ASCII token (RFC 2047 2), dots let through as
+    // `ANSI_X3.4-1968` is written.
+    if charset.is_empty() || !charset.iter().all(u8::is_ascii_graphic) {
         return None;
     }
 
@@ -291,6 +287,17 @@ mod tests {
             decode_text(b" Fwd: \n\tSaying \n Hello"),
             "Fwd: Saying Hello"
         );
+    }
+
+    #[test]
+    fn a_charset_outside_ascii_makes_no_word() {
+        assert_eq!(decode_text(b"=?\xc7\x93?b??="), "=?\u{1d3}?b??=");
+    }
+
+    #[test]
+    fn the_blanks_a_word_decodes_to_are_kept() {
+        assert_eq!(decode_text(b" =?utf-8?q?_lead?=\r\n "), " lead");
+        assert_eq!(decode_text(b"=?utf-8?q?a?= =?utf-8?q?trail_?="), "atrail ");
     }
 
     #[test]
