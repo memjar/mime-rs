@@ -123,6 +123,10 @@ pub enum MimeParseYield {
 }
 
 /// The I/O-free parse coroutine.
+///
+/// The tree is built in place: every entity is written straight into its
+/// slot, reached from the root by the positions of `path`, rather than
+/// moved through the parse.
 #[derive(Debug)]
 pub struct MimeParse<'a> {
     input: &'a [u8],
@@ -130,8 +134,11 @@ pub struct MimeParse<'a> {
     max_entities: usize,
     structure_depth: usize,
     tasks: Vec<Task>,
-    flat: Vec<Flat<'a>>,
+    root: MimeEntity<'a>,
+    path: Vec<usize>,
+    entities: usize,
     dashes: Option<Vec<usize>>,
+    delimiters: Vec<Delimiter>,
     state: State<'a>,
 }
 
@@ -141,6 +148,7 @@ impl<'a> MimeParse<'a> {
         let root = Task {
             range: 0..input.len(),
             depth: 1,
+            position: 0,
             digest: false,
         };
 
@@ -150,8 +158,11 @@ impl<'a> MimeParse<'a> {
             max_entities: opts.max_entities.unwrap_or(ENTITIES_MAX).max(1),
             structure_depth: opts.structure_depth.unwrap_or(usize::MAX),
             tasks: vec![root],
-            flat: Vec::new(),
+            root: MimeEntity::default(),
+            path: Vec::new(),
+            entities: 0,
             dashes: None,
+            delimiters: Vec::new(),
             state: State::Next,
         }
     }
@@ -171,13 +182,15 @@ impl<'a> MimeParse<'a> {
         let task = Task {
             range: 0..input.len(),
             depth: 1,
+            position: 0,
             digest,
         };
 
         let mut parse = Self::new(input, opts);
         parse.structure_depth = parse.structure_depth.saturating_add(1);
         parse.tasks.clear();
-        parse.state = State::Body(task, header.clone());
+        parse.root.header = header.clone();
+        parse.state = State::Body(task);
         parse
     }
 
@@ -193,15 +206,23 @@ impl<'a> MimeParse<'a> {
             match mem::replace(&mut self.state, State::Done) {
                 State::Next => {
                     let Some(task) = self.tasks.pop() else {
-                        return MimeCoroutineState::Complete(self.assemble());
+                        let root = mem::take(&mut self.root);
+                        return MimeCoroutineState::Complete(MimeCst { root });
                     };
+
+                    // NOTE: tasks run depth first, so the path down to the
+                    // parent of a task is still the head of the current one.
+                    if task.depth > 1 {
+                        self.path.truncate(task.depth - 2);
+                        self.path.push(task.position);
+                    }
 
                     if let Some(request) = self.start(task) {
                         return MimeCoroutineState::Yielded(request);
                     }
                 }
-                State::Body(task, header) => {
-                    if let Some(request) = self.body(task, header, 0, MimeAnomalies::default()) {
+                State::Body(task) => {
+                    if let Some(request) = self.body(task, 0, MimeAnomalies::default()) {
                         return MimeCoroutineState::Yielded(request);
                     }
                 }
@@ -230,9 +251,7 @@ impl<'a> MimeParse<'a> {
                     });
 
                     if dropped {
-                        self.flat[split.entity]
-                            .anomalies
-                            .insert(MimeAnomaly::DroppedAnswer);
+                        self.current().anomalies.insert(MimeAnomaly::DroppedAnswer);
                     }
 
                     self.dashes = Some(dashes.into_owned());
@@ -244,15 +263,13 @@ impl<'a> MimeParse<'a> {
                 State::FindNeedle(split) => {
                     let range = split.body.clone();
                     let input = self.input;
-                    let needle = split.boundary.clone();
+                    let needle = split.boundary.to_vec();
                     let (found, dropped) = checked(arg.take(), &range, |i| {
                         i + needle.len() <= range.end && input[i..].starts_with(&needle)
                     });
 
                     if dropped {
-                        self.flat[split.entity]
-                            .anomalies
-                            .insert(MimeAnomaly::DroppedAnswer);
+                        self.current().anomalies.insert(MimeAnomaly::DroppedAnswer);
                     }
 
                     self.split(split, Some(&found));
@@ -267,6 +284,21 @@ impl<'a> MimeParse<'a> {
                 self.state = State::Next;
             }
         }
+    }
+
+    /// The entity being parsed.
+    fn current(&mut self) -> &mut MimeEntity<'a> {
+        let mut entity = &mut self.root;
+
+        for &position in &self.path {
+            entity = match &mut entity.body {
+                MimeBodyNode::Multipart(multipart) => &mut multipart.parts[position].entity,
+                MimeBodyNode::Message(nested) => nested,
+                MimeBodyNode::Leaf(_) | MimeBodyNode::Unparsed(_) => unreachable!("a parsed path"),
+            };
+        }
+
+        entity
     }
 
     /// Starts an entity: settles a header block that needs no search, or
@@ -291,14 +323,10 @@ impl<'a> MimeParse<'a> {
                 .all(|byte| matches!(byte, b' ' | b'\t' | b'\r' | b'\n'));
 
         if first.is_empty() || (blank_line && line_end.is_some()) {
-            let header = MimeHeaderBlock {
-                items: Vec::new(),
-                end: Cow::Borrowed(first_line),
-            };
+            self.current().header.end = Cow::Borrowed(first_line);
 
             return self.body(
                 task,
-                header,
                 range.start + first_line.len(),
                 MimeAnomalies::default(),
             );
@@ -314,8 +342,7 @@ impl<'a> MimeParse<'a> {
         let input = self.input;
         let end = task.range.end;
         let mut anomalies = MimeAnomalies::default();
-        let mut items = Vec::with_capacity(ends.len() + 1);
-        let mut block_end: &[u8] = &[];
+        let header = &mut self.current().header;
         let mut pos = task.range.start;
         let mut terminated = false;
 
@@ -323,13 +350,15 @@ impl<'a> MimeParse<'a> {
             anomalies.insert(MimeAnomaly::DroppedAnswer);
         }
 
+        header.items.reserve_exact(ends.len() + 1);
+
         for &at in ends {
-            push_items(&input[pos..=at], &mut items, &mut anomalies);
+            push_items(&input[pos..=at], &mut header.items, &mut anomalies);
             pos = at + 1;
 
             if is_empty_line(input, pos, end) {
                 let len = if input[pos] == b'\n' { 1 } else { 2 };
-                block_end = &input[pos..pos + len];
+                header.end = Cow::Borrowed(&input[pos..pos + len]);
                 pos += len;
                 terminated = true;
                 break;
@@ -337,41 +366,35 @@ impl<'a> MimeParse<'a> {
         }
 
         if !terminated && pos < end {
-            push_items(&input[pos..end], &mut items, &mut anomalies);
+            push_items(&input[pos..end], &mut header.items, &mut anomalies);
             pos = end;
         }
 
         // NOTE: a block holding no field is no header block at all: the
         // entity is all body, as the RFC 5322 3.5 body of a message with no
         // field would be.
-        if !items
+        if !header
+            .items
             .iter()
             .any(|item| matches!(item, MimeHeaderItem::Field(_)))
         {
+            *header = MimeHeaderBlock::default();
             let dropped = anomalies.contains(MimeAnomaly::DroppedAnswer);
             anomalies = MimeAnomalies::default();
 
             if dropped {
                 anomalies.insert(MimeAnomaly::DroppedAnswer);
             }
-            return self.body(
-                task.clone(),
-                MimeHeaderBlock::default(),
-                task.range.start,
-                anomalies,
-            );
+
+            let start = task.range.start;
+            return self.body(task, start, anomalies);
         }
 
         if !terminated {
             anomalies.insert(MimeAnomaly::NoBlankLine);
         }
 
-        let header = MimeHeaderBlock {
-            items,
-            end: Cow::Borrowed(block_end),
-        };
-
-        self.body(task, header, pos, anomalies)
+        self.body(task, pos, anomalies)
     }
 
     /// Records an entity and decides its body: a multipart to split, a
@@ -379,62 +402,62 @@ impl<'a> MimeParse<'a> {
     fn body(
         &mut self,
         task: Task,
-        header: MimeHeaderBlock<'a>,
         start: usize,
         mut anomalies: MimeAnomalies,
     ) -> Option<MimeParseYield> {
         let input = self.input;
         let body = start..task.range.end;
-        let kind = Kind::of(&header, task.digest);
-        let index = self.flat.len();
+        let max_depth = self.max_depth;
+        let structure_depth = self.structure_depth;
+        self.entities += 1;
+
+        let entity = self.current();
+        let kind = Kind::of(&entity.header, task.digest);
 
         let container = matches!(kind, Kind::Multipart { .. } | Kind::Message) && !body.is_empty();
-        let too_deep = container && task.depth > self.max_depth;
+        let too_deep = container && task.depth > max_depth;
 
         if too_deep {
             anomalies.insert(MimeAnomaly::NestingLimit);
         }
 
-        self.flat.push(Flat {
-            header,
-            body: FlatBody::Leaf(&input[body.clone()]),
-            anomalies,
-        });
+        entity.anomalies = anomalies;
+
+        // NOTE: past the structure depth, a container keeps its body whole
+        // until it is expanded.
+        if container && !too_deep && task.depth > structure_depth {
+            entity.body = MimeBodyNode::Unparsed(Box::new(MimeUnparsed {
+                bytes: Cow::Borrowed(&input[body]),
+                digest: task.digest,
+            }));
+            return None;
+        }
+
+        entity.body = MimeBodyNode::Leaf(Cow::Borrowed(&input[body.clone()]));
 
         if too_deep {
             return None;
         }
 
-        // NOTE: past the structure depth, a container keeps its body whole
-        // until it is expanded.
-        if container && task.depth > self.structure_depth {
-            self.flat[index].body = FlatBody::Unparsed(&input[body], task.digest);
-            return None;
-        }
-
         match kind {
             Kind::Multipart { boundary, digest } if !body.is_empty() => {
+                // NOTE: a boundary of dashes alone would match every dashed
+                // line of the body, so it never matches.
+                if boundary.iter().all(|byte| *byte == b'-') {
+                    entity.anomalies.insert(MimeAnomaly::MissingDelimiter);
+                    entity.body = MimeBodyNode::Multipart(Box::new(MimeMultipart {
+                        preamble: Cow::Borrowed(&input[body]),
+                        ..Default::default()
+                    }));
+                    return None;
+                }
+
                 let split = Split {
-                    entity: index,
                     body: body.clone(),
                     boundary,
                     depth: task.depth,
                     digest,
                 };
-
-                // NOTE: a boundary of dashes alone would match every dashed
-                // line of the body, so it never matches.
-                if split.boundary.iter().all(|byte| *byte == b'-') {
-                    let entity = &mut self.flat[index];
-                    entity.anomalies.insert(MimeAnomaly::MissingDelimiter);
-                    entity.body = FlatBody::Multipart {
-                        preamble: &input[body],
-                        delimiters: Vec::new(),
-                        close: &[],
-                        epilogue: &[],
-                    };
-                    return None;
-                }
 
                 if self.dashes.is_some() {
                     return self.split(split, None);
@@ -444,10 +467,11 @@ impl<'a> MimeParse<'a> {
                 Some(MimeParseYield::WantsDashLines { range: body })
             }
             Kind::Message if starts_with_field(&input[body.clone()]) => {
-                self.flat[index].body = FlatBody::Message;
+                entity.body = MimeBodyNode::Message(Box::default());
                 self.tasks.push(Task {
                     range: body,
                     depth: task.depth + 1,
+                    position: 0,
                     digest: false,
                 });
                 None
@@ -459,15 +483,16 @@ impl<'a> MimeParse<'a> {
     /// Splits a multipart at its delimiter lines, from the dash lines
     /// already found or, for the fallback, from the boundary's mid-line
     /// occurrences.
-    fn split(&mut self, split: Split, fallback: Option<&[usize]>) -> Option<MimeParseYield> {
+    fn split(&mut self, split: Split<'a>, fallback: Option<&[usize]>) -> Option<MimeParseYield> {
         let input = self.input;
         let body = split.body.clone();
-        let boundary = split.boundary.as_slice();
+        let boundary = &*split.boundary;
 
         let dashes = self.dashes.as_deref().unwrap_or_default();
         let from = dashes.partition_point(|&at| at < body.start);
         let to = dashes.partition_point(|&at| at < body.end);
-        let mut delimiters = line_delimiters(input, &body, boundary, &dashes[from..to]);
+        let mut delimiters = mem::take(&mut self.delimiters);
+        line_delimiters(input, &body, boundary, &dashes[from..to], &mut delimiters);
 
         let needs_open = delimiters.first().is_none_or(|delimiter| delimiter.close);
         let needs_close = !delimiters.last().is_some_and(|delimiter| delimiter.close);
@@ -475,6 +500,7 @@ impl<'a> MimeParse<'a> {
         let Some(found) = fallback else {
             if needs_open || needs_close {
                 let needle = boundary.to_vec();
+                self.delimiters = delimiters;
                 self.state = State::FindNeedle(split);
                 return Some(MimeParseYield::WantsFind {
                     range: body,
@@ -482,7 +508,9 @@ impl<'a> MimeParse<'a> {
                 });
             }
 
-            return self.build(split, delimiters, false);
+            let request = self.build(split, &delimiters, false);
+            self.delimiters = delimiters;
+            return request;
         };
 
         // NOTE: a `--` and boundary mid-line or followed by more text, as
@@ -532,21 +560,23 @@ impl<'a> MimeParse<'a> {
             }
         }
 
-        self.build(split, delimiters, fell_back)
+        let request = self.build(split, &delimiters, fell_back);
+        self.delimiters = delimiters;
+        request
     }
 
     /// Records the multipart its delimiters split, and queues its parts.
     fn build(
         &mut self,
-        split: Split,
-        delimiters: Vec<Delimiter>,
+        split: Split<'a>,
+        delimiters: &[Delimiter],
         fell_back: bool,
     ) -> Option<MimeParseYield> {
         let input = self.input;
         let body = split.body.clone();
 
         if delimiters.is_empty() {
-            self.flat[split.entity]
+            self.current()
                 .anomalies
                 .insert(MimeAnomaly::MissingDelimiter);
             return None;
@@ -554,17 +584,15 @@ impl<'a> MimeParse<'a> {
 
         let opens = delimiters
             .iter()
-            .filter(|delimiter| !delimiter.close)
-            .count();
+            .position(|delimiter| delimiter.close)
+            .unwrap_or(delimiters.len());
 
-        if self.flat.len() + self.tasks.len() + opens > self.max_entities {
-            self.flat[split.entity]
-                .anomalies
-                .insert(MimeAnomaly::PartLimit);
+        if self.entities + self.tasks.len() + opens > self.max_entities {
+            self.current().anomalies.insert(MimeAnomaly::PartLimit);
             return None;
         }
 
-        let entity = &mut self.flat[split.entity];
+        let entity = self.current();
 
         if fell_back {
             entity.anomalies.insert(MimeAnomaly::FallbackDelimiter);
@@ -576,162 +604,81 @@ impl<'a> MimeParse<'a> {
             entity.anomalies.insert(MimeAnomaly::Unterminated);
         }
 
-        let first = delimiters[0].start;
-        let mut parts = Vec::with_capacity(opens);
-        let mut close: &[u8] = &[];
-        let mut epilogue: &[u8] = &[];
+        let (close, epilogue) = delimiters.get(opens).map_or((&[][..], &[][..]), |close| {
+            (&input[close.start..close.end], &input[close.end..body.end])
+        });
 
-        for (i, delimiter) in delimiters.iter().enumerate() {
-            if delimiter.close {
-                close = &input[delimiter.start..delimiter.end];
-                epilogue = &input[delimiter.end..body.end];
-                break;
-            }
+        // NOTE: each part is filled in place when its task runs.
+        entity.body = MimeBodyNode::Multipart(Box::new(MimeMultipart {
+            preamble: Cow::Borrowed(&input[body.start..delimiters[0].start]),
+            parts: delimiters[..opens]
+                .iter()
+                .map(|delimiter| MimePart {
+                    delimiter: Cow::Borrowed(&input[delimiter.start..delimiter.end]),
+                    entity: MimeEntity::default(),
+                })
+                .collect(),
+            close: Cow::Borrowed(close),
+            epilogue: Cow::Borrowed(epilogue),
+        }));
 
-            let content_end = delimiters.get(i + 1).map_or(body.end, |next| next.start);
-            parts.push((delimiter.start..delimiter.end, delimiter.end..content_end));
-        }
+        for (position, delimiter) in delimiters[..opens].iter().enumerate().rev() {
+            let content_end = delimiters
+                .get(position + 1)
+                .map_or(body.end, |next| next.start);
 
-        entity.body = FlatBody::Multipart {
-            preamble: &input[body.start..first],
-            delimiters: parts.iter().map(|(line, _)| &input[line.clone()]).collect(),
-            close,
-            epilogue,
-        };
-
-        for (_, content) in parts.into_iter().rev() {
             self.tasks.push(Task {
-                range: content,
+                range: delimiter.end..content_end,
                 depth: split.depth + 1,
+                position,
                 digest: split.digest,
             });
         }
 
         None
     }
-
-    /// Folds the flat entities, last first, into the nested tree.
-    fn assemble(&mut self) -> MimeCst<'a> {
-        // NOTE: walked last first, every entity finds its children on top of
-        // the stack, the first child topmost, its descendants already folded.
-        let flat = mem::take(&mut self.flat);
-        let mut stack: Vec<MimeEntity<'a>> = Vec::new();
-
-        for entity in flat.into_iter().rev() {
-            let count = match &entity.body {
-                FlatBody::Leaf(_) => 0,
-                FlatBody::Unparsed(..) => 0,
-                FlatBody::Multipart { delimiters, .. } => delimiters.len(),
-                FlatBody::Message => 1,
-            };
-
-            let mut kids: Vec<MimeEntity<'a>> = Vec::with_capacity(count);
-
-            for _ in 0..count {
-                kids.push(stack.pop().unwrap_or_default());
-            }
-
-            let body = match entity.body {
-                FlatBody::Leaf(bytes) => MimeBodyNode::Leaf(Cow::Borrowed(bytes)),
-                FlatBody::Unparsed(bytes, digest) => {
-                    MimeBodyNode::Unparsed(Box::new(MimeUnparsed {
-                        bytes: Cow::Borrowed(bytes),
-                        digest,
-                    }))
-                }
-                FlatBody::Multipart {
-                    preamble,
-                    delimiters,
-                    close,
-                    epilogue,
-                } => MimeBodyNode::Multipart(Box::new(MimeMultipart {
-                    preamble: Cow::Borrowed(preamble),
-                    parts: delimiters
-                        .into_iter()
-                        .zip(kids)
-                        .map(|(delimiter, entity)| MimePart {
-                            delimiter: Cow::Borrowed(delimiter),
-                            entity,
-                        })
-                        .collect(),
-                    close: Cow::Borrowed(close),
-                    epilogue: Cow::Borrowed(epilogue),
-                })),
-                FlatBody::Message => {
-                    MimeBodyNode::Message(Box::new(kids.pop().unwrap_or_default()))
-                }
-            };
-
-            let built = MimeEntity {
-                header: entity.header,
-                body,
-                anomalies: entity.anomalies,
-            };
-
-            stack.push(built);
-        }
-
-        MimeCst {
-            root: stack.pop().unwrap_or_default(),
-        }
-    }
 }
 
 #[derive(Debug)]
 enum State<'a> {
     Next,
-    Body(Task, MimeHeaderBlock<'a>),
+    Body(Task),
     FindFieldEnds(Task),
-    FindDashLines(Split),
-    FindNeedle(Split),
+    FindDashLines(Split<'a>),
+    FindNeedle(Split<'a>),
     Done,
 }
 
+/// An entity to parse: its bytes, its depth, and its position in its
+/// parent (0 under a message).
 #[derive(Clone, Debug)]
 struct Task {
     range: Range<usize>,
     depth: usize,
+    position: usize,
     digest: bool,
 }
 
 #[derive(Debug)]
-struct Split {
-    entity: usize,
+struct Split<'a> {
     body: Range<usize>,
-    boundary: Vec<u8>,
+    boundary: Cow<'a, [u8]>,
     depth: usize,
     digest: bool,
 }
 
-#[derive(Debug)]
-struct Flat<'a> {
-    header: MimeHeaderBlock<'a>,
-    body: FlatBody<'a>,
-    anomalies: MimeAnomalies,
-}
-
-#[derive(Debug)]
-enum FlatBody<'a> {
-    Leaf(&'a [u8]),
-    Unparsed(&'a [u8], bool),
-    Multipart {
-        preamble: &'a [u8],
-        delimiters: Vec<&'a [u8]>,
-        close: &'a [u8],
-        epilogue: &'a [u8],
-    },
-    Message,
-}
-
 /// What the structural fields make of a body.
-enum Kind {
-    Multipart { boundary: Vec<u8>, digest: bool },
+enum Kind<'a> {
+    Multipart {
+        boundary: Cow<'a, [u8]>,
+        digest: bool,
+    },
     Message,
     Leaf,
 }
 
-impl Kind {
-    fn of(header: &MimeHeaderBlock<'_>, digest: bool) -> Self {
+impl<'a> Kind<'a> {
+    fn of(header: &MimeHeaderBlock<'a>, digest: bool) -> Self {
         let field = header.get_all("content-type").last();
         let (top, sub) = field.map_or((&[][..], &[][..]), |field| {
             let media = MimeMediaType::new(field.value());
@@ -753,10 +700,14 @@ impl Kind {
             };
         }
 
-        let value = field.map(|field| field.value()).unwrap_or_default();
+        // NOTE: a boundary is borrowed from the input whenever the field is.
+        let boundary = field.and_then(|field| match field.borrowed_value() {
+            Some(value) => raw_param(value, "boundary"),
+            None => raw_param(field.value(), "boundary").map(|b| Cow::Owned(b.into_owned())),
+        });
 
         {
-            match raw_param(value, "boundary").filter(|b| !b.is_empty()) {
+            match boundary.filter(|b| !b.is_empty()) {
                 Some(boundary) => Self::Multipart {
                     boundary,
                     digest: sub.eq_ignore_ascii_case(b"digest"),
@@ -782,6 +733,7 @@ pub(crate) fn identity_encoding(header: &MimeHeaderBlock<'_>) -> bool {
 
 /// A delimiter line, from the line ending before it to the end of its own
 /// line.
+#[derive(Debug)]
 struct Delimiter {
     start: usize,
     end: usize,
@@ -832,15 +784,16 @@ impl Delimiter {
     }
 }
 
-/// The delimiter lines among the dash lines of a body, in order, the scan
-/// stopping after the first close delimiter.
+/// Fills `delimiters` with the delimiter lines among the dash lines of a
+/// body, in order, the scan stopping after the first close delimiter.
 fn line_delimiters(
     input: &[u8],
     body: &Range<usize>,
     boundary: &[u8],
     candidates: &[usize],
-) -> Vec<Delimiter> {
-    let mut delimiters: Vec<Delimiter> = Vec::new();
+    delimiters: &mut Vec<Delimiter>,
+) {
+    delimiters.clear();
     let mut floor = body.start;
 
     for &line in candidates {
@@ -860,8 +813,6 @@ fn line_delimiters(
             break;
         }
     }
-
-    delimiters
 }
 
 /// Whether the first line of `bytes` can open a header block: it holds a
@@ -1010,8 +961,13 @@ fn push_field<'a>(
     value_end: usize,
     items: &mut Vec<MimeHeaderItem<'a>>,
 ) {
-    match MimeHeaderField::new(Cow::Borrowed(line), name_end, colon_end, value_end) {
-        Some(field) => items.push(MimeHeaderItem::Field(field)),
-        None => items.push(MimeHeaderItem::Opaque(Cow::Borrowed(line))),
-    }
+    // NOTE: with the room reserved first, the item is written straight into
+    // its slot instead of being staged on the stack and copied, which made
+    // the copy wait on the narrower stores staging it.
+    items.resize_with(items.len() + 1, || {
+        match MimeHeaderField::new(Cow::Borrowed(line), name_end, colon_end, value_end) {
+            Some(field) => MimeHeaderItem::Field(field),
+            None => MimeHeaderItem::Opaque(Cow::Borrowed(line)),
+        }
+    });
 }

@@ -71,7 +71,19 @@ impl<'v> MimeMediaType<'v> {
     /// The decoded value of the first parameter named `name`, compared
     /// ASCII case-insensitively; parses the parameters.
     pub fn param(&self, name: &str) -> Option<String> {
-        raw_param(self.raw, name).map(|value| String::from_utf8_lossy(&value).into_owned())
+        raw_param(self.raw, name).map(|value| {
+            String::from_utf8(value.into_owned())
+                .unwrap_or_else(|error| String::from_utf8_lossy(error.as_bytes()).into_owned())
+        })
+    }
+
+    /// The raw values of the first parameters named `names`, read in one
+    /// pass, borrowed from the field whenever they need no decoding.
+    pub(crate) fn raw_params<const N: usize>(
+        &self,
+        names: [&str; N],
+    ) -> [Option<Cow<'v, [u8]>>; N] {
+        raw_params(self.raw, names)
     }
 
     /// The whole value decoded, parameters included.
@@ -141,7 +153,19 @@ pub fn parse_disposition(value: &[u8]) -> MimeDisposition {
 /// The value of one parameter of a Content-Type or Content-Disposition
 /// value, read without decoding any other: unquoted and unescaped, or, for
 /// an RFC 2231 or encoded-word value, decoded by the full reader.
-pub(crate) fn raw_param(value: &[u8], name: &str) -> Option<Vec<u8>> {
+pub(crate) fn raw_param<'v>(value: &'v [u8], name: &str) -> Option<Cow<'v, [u8]>> {
+    let [param] = raw_params(value, [name]);
+    param
+}
+
+/// [`raw_param`] for several names in one pass, each slot holding the first
+/// parameter of its name.
+pub(crate) fn raw_params<'v, const N: usize>(
+    value: &'v [u8],
+    names: [&str; N],
+) -> [Option<Cow<'v, [u8]>>; N] {
+    let mut out = [const { None }; N];
+    let mut settled = [false; N];
     let mut lex = Lexer::new(value);
 
     // NOTE: past the media type; a parameter may follow it with no `;`.
@@ -155,12 +179,12 @@ pub(crate) fn raw_param(value: &[u8], name: &str) -> Option<Vec<u8>> {
         lex.until(|byte| matches!(byte, b';' | b'(') || is_blank(byte));
     }
 
-    let full = || {
+    let full = |name: &str| {
         let params = parse_content_type(value).params;
         params
             .into_iter()
             .find(|param| param.name.eq_ignore_ascii_case(name))
-            .map(|param| param.value.into_bytes())
+            .map(|param| Cow::Owned(param.value.into_bytes()))
     };
 
     loop {
@@ -170,8 +194,8 @@ pub(crate) fn raw_param(value: &[u8], name: &str) -> Option<Vec<u8>> {
 
         lex.skip_cfws();
 
-        if lex.is_done() {
-            return None;
+        if lex.is_done() || !settled.contains(&false) {
+            return out;
         }
 
         let start = lex.pos;
@@ -189,28 +213,29 @@ pub(crate) fn raw_param(value: &[u8], name: &str) -> Option<Vec<u8>> {
         lex.bump();
         lex.skip_cfws();
 
-        let extended = found.len() > name.len()
-            && found[..name.len()].eq_ignore_ascii_case(name.as_bytes())
-            && found[name.len()] == b'*';
-
-        if extended {
-            return full();
-        }
-
-        let wanted = found.eq_ignore_ascii_case(name.as_bytes());
-        let value: Vec<u8> = if lex.peek() == Some(b'"') {
-            lex.quoted()
+        let value: Cow<'v, [u8]> = if lex.peek() == Some(b'"') {
+            lex.quoted_cow()
         } else {
-            lex.until(|byte| matches!(byte, b';' | b'(') || is_blank(byte))
-                .to_vec()
+            Cow::Borrowed(lex.until(|byte| matches!(byte, b';' | b'(') || is_blank(byte)))
         };
 
-        if wanted {
-            return if rfc2047::contains_word_start(&value) {
-                full()
-            } else {
-                Some(value)
-            };
+        for (i, name) in names.iter().enumerate() {
+            if settled[i] {
+                continue;
+            }
+
+            let extended = found.len() > name.len()
+                && found[..name.len()].eq_ignore_ascii_case(name.as_bytes())
+                && found[name.len()] == b'*';
+
+            if extended || found.eq_ignore_ascii_case(name.as_bytes()) {
+                settled[i] = true;
+                out[i] = if extended || rfc2047::contains_word_start(&value) {
+                    full(name)
+                } else {
+                    Some(value.clone())
+                };
+            }
         }
     }
 }

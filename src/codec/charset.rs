@@ -119,7 +119,12 @@ pub fn encode<'t>(label: &str, text: &'t str) -> Option<Cow<'t, [u8]>> {
 }
 
 fn utf8(bytes: &[u8], known: bool) -> MimeCharsetText<'_> {
-    let text = String::from_utf8_lossy(bytes);
+    // NOTE: core's validation takes the ASCII fast path the lossy decoder's
+    // byte-by-byte chunking lacks, so it runs first.
+    let text = match core::str::from_utf8(bytes) {
+        Ok(text) => Cow::Borrowed(text),
+        Err(_) => String::from_utf8_lossy(bytes),
+    };
     let malformed = matches!(text, Cow::Owned(_));
 
     MimeCharsetText {

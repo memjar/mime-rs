@@ -263,6 +263,15 @@ impl<'a> MimeHeaderField<'a> {
         &self.line[self.colon_end as usize..self.value_end as usize]
     }
 
+    /// [`value`](Self::value) with the input's lifetime, while the field
+    /// still borrows its line from the input.
+    pub(crate) fn borrowed_value(&self) -> Option<&'a [u8]> {
+        match self.line {
+            Cow::Borrowed(line) => line.get(self.colon_end as usize..self.value_end as usize),
+            Cow::Owned(_) => None,
+        }
+    }
+
     /// The line ending (`\r\n` or `\n`), empty at the end of the input.
     pub fn eol(&self) -> &[u8] {
         &self.line[self.value_end as usize..]

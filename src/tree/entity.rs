@@ -21,7 +21,7 @@ use crate::{
             content_type::{self, MimeMediaType},
             value,
         },
-        header::MimeHeaderBlock,
+        header::{MimeHeaderBlock, MimeHeaderField},
         lists::MimeBodyLists,
         parse::{MimeParse, MimeParseOptions},
     },
@@ -73,12 +73,29 @@ impl<'a> MimeEntity<'a> {
     ///
     /// Borrowed from the field: the parameters are parsed only when asked.
     pub fn content_type(&self) -> MimeMediaType<'_> {
-        self.header
-            .get_all("content-type")
-            .last()
-            .map(|field| MimeMediaType::new(field.value()))
-            .filter(|media| !media.top.is_empty())
-            .unwrap_or(MimeMediaType::TEXT_PLAIN)
+        media_type(self.header.get_all("content-type").last())
+    }
+
+    /// [`content_type`](Self::content_type) and
+    /// [`transfer_encoding`](Self::transfer_encoding), read in one walk of
+    /// the header block.
+    fn content(&self) -> (MimeMediaType<'_>, MimeTransferEncoding) {
+        let mut content_type = None;
+        let mut encoding = None;
+
+        for field in self.header.fields() {
+            if field.is("content-type") {
+                content_type = Some(field);
+            } else if field.is("content-transfer-encoding") {
+                encoding = Some(field);
+            }
+        }
+
+        let encoding = encoding
+            .map(|field| value::transfer_encoding(field.value()))
+            .unwrap_or_default();
+
+        (media_type(content_type), encoding)
     }
 
     /// The transfer encoding: the last Content-Transfer-Encoding field, or
@@ -198,10 +215,17 @@ impl<'a> MimeEntity<'a> {
 
     /// [`decoded`](Self::decoded), with the problems met.
     pub fn decoded_checked(&self) -> Option<(Cow<'_, [u8]>, MimeDecodeProblems)> {
+        self.decoded_as(self.transfer_encoding())
+    }
+
+    fn decoded_as(
+        &self,
+        encoding: MimeTransferEncoding,
+    ) -> Option<(Cow<'_, [u8]>, MimeDecodeProblems)> {
         let raw = self.bytes()?;
         let mut problems = MimeDecodeProblems::default();
 
-        let bytes = match self.transfer_encoding() {
+        let bytes = match encoding {
             MimeTransferEncoding::QuotedPrintable => {
                 let mut out = Vec::with_capacity(raw.len());
                 problems.malformed_encoding =
@@ -242,9 +266,16 @@ impl<'a> MimeEntity<'a> {
 
     /// [`text`](Self::text), with the problems met.
     pub fn text_checked(&self) -> Option<(Cow<'_, str>, MimeDecodeProblems)> {
-        let (bytes, mut problems) = self.decoded_checked()?;
-        let content_type = self.content_type();
-        let label = content_type.param("charset");
+        let (content_type, encoding) = self.content();
+        let (bytes, mut problems) = self.decoded_as(encoding)?;
+        let plain = content_type.is("text", "plain");
+        let [label, format, delsp] = if plain {
+            content_type.raw_params(["charset", "format", "delsp"])
+        } else {
+            let [label] = content_type.raw_params(["charset"]);
+            [label, None, None]
+        };
+        let label = label.as_deref().map(String::from_utf8_lossy);
         let label = label.as_deref();
 
         let text: Cow<'_, str> = match bytes {
@@ -262,18 +293,13 @@ impl<'a> MimeEntity<'a> {
             }
         };
 
-        let flowed = content_type.is("text", "plain")
-            && content_type
-                .param("format")
-                .is_some_and(|format| format.eq_ignore_ascii_case("flowed"));
+        let flowed = plain && format.is_some_and(|format| format.eq_ignore_ascii_case(b"flowed"));
 
         if !flowed {
             return Some((text, problems));
         }
 
-        let delsp = content_type
-            .param("delsp")
-            .is_some_and(|delsp| delsp.eq_ignore_ascii_case("yes"));
+        let delsp = delsp.is_some_and(|delsp| delsp.eq_ignore_ascii_case(b"yes"));
 
         Some((Cow::Owned(flowed::decode(&text, delsp)), problems))
     }
@@ -393,4 +419,13 @@ impl<'a> MimeEntity<'a> {
         self.header.push_chunks(out);
         self.body.push_chunks(out);
     }
+}
+
+/// The media type a Content-Type field states, `text/plain` with none or
+/// with one stating no type (RFC 2045 5.2).
+fn media_type<'f>(field: Option<&'f MimeHeaderField<'_>>) -> MimeMediaType<'f> {
+    field
+        .map(|field| MimeMediaType::new(field.value()))
+        .filter(|media| !media.top.is_empty())
+        .unwrap_or(MimeMediaType::TEXT_PLAIN)
 }

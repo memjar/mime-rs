@@ -100,7 +100,17 @@ pub fn word_end(raw: &[u8], start: usize) -> Option<usize> {
 
 /// Whether `raw` holds a `=?`, the only way an encoded word can start.
 pub fn contains_word_start(raw: &[u8]) -> bool {
-    raw.windows(2).any(|pair| pair == b"=?")
+    let mut rest = raw;
+
+    while let Some(at) = rest.iter().position(|byte| *byte == b'=') {
+        if rest.get(at + 1) == Some(&b'?') {
+            return true;
+        }
+
+        rest = &rest[at + 1..];
+    }
+
+    false
 }
 
 struct Word<'r> {

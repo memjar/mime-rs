@@ -73,8 +73,9 @@ impl<'a> MimeCst<'a> {
 
     /// Every entity, the root first, in document order.
     pub fn entities(&self) -> Vec<&MimeEntity<'a>> {
-        let mut out = Vec::new();
-        let mut stack = Vec::from([&self.root]);
+        let mut out = Vec::with_capacity(8);
+        let mut stack = Vec::with_capacity(8);
+        stack.push(&self.root);
 
         while let Some(entity) = stack.pop() {
             out.push(entity);
@@ -125,7 +126,7 @@ impl MimeCst<'_> {
 /// Runs a parse coroutine to completion over `input`, answering its
 /// searches through memchr.
 pub(crate) fn answer<'a>(input: &'a [u8], mut parse: MimeParse<'a>) -> MimeCst<'a> {
-    let mut found = Vec::new();
+    let mut found = Vec::with_capacity(64);
     let mut arg = None;
 
     loop {

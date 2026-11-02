@@ -6,7 +6,7 @@
 //! Readers are liberal: an unclosed quote or comment runs to the end of the
 //! value instead of failing, so every value reads as something.
 
-use alloc::vec::Vec;
+use alloc::{borrow::Cow, vec::Vec};
 
 /// A cursor over one raw field value.
 #[derive(Clone, Debug)]
@@ -101,6 +101,25 @@ impl<'v> Lexer<'v> {
         }
 
         out
+    }
+
+    /// [`quoted`](Self::quoted), borrowed when the string holds no quoted
+    /// pair and no line break.
+    pub(crate) fn quoted_cow(&mut self) -> Cow<'v, [u8]> {
+        let start = self.pos + 1;
+        let rest = self.bytes.get(start..).unwrap_or_default();
+        let plain = rest
+            .iter()
+            .position(|byte| matches!(byte, b'"' | b'\\' | b'\r' | b'\n'))
+            .filter(|&at| rest[at] == b'"');
+
+        match plain {
+            Some(len) => {
+                self.pos = start + len + 1;
+                Cow::Borrowed(&rest[..len])
+            }
+            None => Cow::Owned(self.quoted()),
+        }
     }
 
     /// Reads bytes until `stop` matches one or the value ends.
