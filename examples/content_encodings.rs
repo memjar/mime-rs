@@ -4,17 +4,22 @@
 use std::borrow::Cow;
 
 use mime::codec::{base64, flowed, quoted_printable, rfc2047, rfc2231};
+use simd_cpu::SimdCpu;
 
 fn main() {
+    // NOTE: once, first thing, as every application using SIMD codecs does.
+    let _ = SimdCpu::install_detected();
+
     let mut out = Vec::new();
-    let clean = quoted_printable::decode(b"caf=C3=A9 cr=\r\n=C3=A8me", &mut out);
+    let clean =
+        quoted_printable::decode(SimdCpu::current(), b"caf=C3=A9 cr=\r\n=C3=A8me", &mut out);
     println!(
         "quoted-printable: {:?} (clean: {clean})",
         String::from_utf8_lossy(&out)
     );
 
     let mut out = Vec::new();
-    base64::encode(b"hello, world", b"\r\n", &mut out);
+    base64::encode(SimdCpu::current(), b"hello, world", b"\r\n", &mut out);
     println!("base64: {:?}", String::from_utf8_lossy(&out));
 
     println!(

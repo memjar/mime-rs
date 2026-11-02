@@ -11,6 +11,8 @@
 use alloc::{string::String, vec::Vec};
 use core::str;
 
+use simd_cpu::SimdCpu;
+
 use crate::{
     build::entity::is_boundary,
     codec::{quoted_printable, rfc2047},
@@ -285,7 +287,7 @@ impl Walk {
             }
             MimeTransferEncoding::QuotedPrintable => {
                 let mut out = Vec::new();
-                let clean = quoted_printable::decode(bytes, &mut out);
+                let clean = quoted_printable::decode(SimdCpu::current(), bytes, &mut out);
                 let long = bytes
                     .split(|byte| *byte == b'\n')
                     .any(|line| line.strip_suffix(b"\r").unwrap_or(line).len() > 76);

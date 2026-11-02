@@ -28,6 +28,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 - Added the codecs of `codec`: base64, quoted-printable, RFC 2047 encoded words, RFC 2231 parameters, RFC 3676 flowed text and charsets.
 
+- Added SIMD base64 through base64-codec: leaves and encoded words decode under the `simd_cpu::SimdCpu` token the application installs once with `SimdCpu::install_detected`, the build target's baseline when none is, and `MimeBuildOptions::cpu` overrides it for a build.
+
+- Added SIMD quoted-printable through quoted-printable-codec, for bodies and Q encoded words, under the same token. Decoding now also reports a lowercase hex digit, a raw 8-bit byte and a bare CR (kept as before), reads an `=` ending the input as a clean soft break, and keeps as data the blanks past 76 before a line break.
+
 - Added `value::subject::base_subject`, the RFC 5256 base subject.
 
 - Added `Mime::to_bytes` and `build::MimeBuildOptions`, the deterministic writer of any model.

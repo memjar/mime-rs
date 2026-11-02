@@ -833,6 +833,7 @@ fn assert_rebuilds(data: &[u8]) {
         allow_utf8_headers: flags & 8 != 0,
         flowed: flags & 16 != 0,
         legacy_name: flags & 32 != 0,
+        cpu: None,
     };
 
     let Ok(first) = MimeCst::parse(data).decode().to_bytes(&opts) else {

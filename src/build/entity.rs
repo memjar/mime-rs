@@ -24,6 +24,8 @@
 use alloc::{borrow::Cow, collections::BTreeSet, format, string::String, vec::Vec};
 use core::{iter, str};
 
+use simd_cpu::SimdCpu;
+
 use crate::{
     build::{MimeBuildError, MimeBuildOptions, field, fold::Folder},
     codec::{charset, flowed, quoted_printable},
@@ -121,7 +123,12 @@ pub(crate) fn write(
 
     match &body.encoding {
         #[cfg(feature = "base64")]
-        Some(MimeTransferEncoding::Base64) => crate::codec::base64::encode(&body.bytes, eol, out),
+        Some(MimeTransferEncoding::Base64) => crate::codec::base64::encode(
+            opts.cpu.unwrap_or_else(SimdCpu::current),
+            &body.bytes,
+            eol,
+            out,
+        ),
         _ => out.extend_from_slice(&body.bytes),
     }
 
@@ -589,12 +596,16 @@ fn leaf<'b>(
     taken: &[String],
 ) -> (Cow<'b, [u8]>, Option<MimeTransferEncoding>) {
     let eol = opts.line_ending.as_bytes();
+    let cpu = opts.cpu.unwrap_or_else(SimdCpu::current);
     let carries = |encoding: &MimeTransferEncoding| valid(encoding, &bytes, opts, taken);
 
     if let Some(declared) = declared
         && carries(declared)
     {
-        return (encode(declared, bytes, text, eol), Some(declared.clone()));
+        return (
+            encode(cpu, declared, bytes, text, eol),
+            Some(declared.clone()),
+        );
     }
 
     let chosen = if text && carries(&MimeTransferEncoding::SevenBit) {
@@ -607,7 +618,7 @@ fn leaf<'b>(
         MimeTransferEncoding::Base64
     } else {
         let mut quoted = Vec::with_capacity(bytes.len() * 2);
-        quoted_printable::encode(&bytes, text, eol, &mut quoted);
+        quoted_printable::encode(cpu, &bytes, text, eol, &mut quoted);
 
         let base64_len = bytes.len().div_ceil(57) * (76 + eol.len());
 
@@ -621,7 +632,7 @@ fn leaf<'b>(
         }
     };
 
-    (encode(&chosen, bytes, text, eol), Some(chosen))
+    (encode(cpu, &chosen, bytes, text, eol), Some(chosen))
 }
 
 /// Whether `encoding` can carry `bytes` under the options. Content written
@@ -663,6 +674,7 @@ pub(crate) fn holds_delimiter(bytes: &[u8], taken: &[String]) -> bool {
 }
 
 fn encode<'b>(
+    cpu: SimdCpu,
     encoding: &MimeTransferEncoding,
     bytes: Cow<'b, [u8]>,
     text: bool,
@@ -671,7 +683,7 @@ fn encode<'b>(
     match encoding {
         MimeTransferEncoding::QuotedPrintable => {
             let mut out = Vec::with_capacity(bytes.len() * 2);
-            quoted_printable::encode(&bytes, text, eol, &mut out);
+            quoted_printable::encode(cpu, &bytes, text, eol, &mut out);
             Cow::Owned(out)
         }
         _ => bytes,
@@ -1035,7 +1047,12 @@ pub(crate) fn encode_leaf(
 
     match &encoding {
         #[cfg(feature = "base64")]
-        Some(MimeTransferEncoding::Base64) => crate::codec::base64::encode(&bytes, eol, &mut out),
+        Some(MimeTransferEncoding::Base64) => crate::codec::base64::encode(
+            opts.cpu.unwrap_or_else(SimdCpu::current),
+            &bytes,
+            eol,
+            &mut out,
+        ),
         _ => out.extend_from_slice(&bytes),
     }
 

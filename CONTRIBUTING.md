@@ -29,7 +29,7 @@ Non-trivial work starts with a change folder under cairn/changes, and nothing be
 
 ## Build
 
-mime-rs is not an I/O library: its one coroutine, the parse, yields byte searches rather than I/O, and it has no client or TLS layer. It is a no_std library (with alloc) whose core is dependency-free, every dependency sitting behind a feature: `parser` takes memchr, `base64` the base64 crate, `encoding` encoding_rs.
+mime-rs is not an I/O library: its one coroutine, the parse, yields byte searches rather than I/O, and it has no client or TLS layer. It is a no_std library (with alloc) whose core depends on simd-cpu, for the CPU token the application hands to the SIMD codecs, and quoted-printable-codec, every other dependency sitting behind a feature: `parser` takes memchr, `base64` base64-codec, `encoding` encoding_rs.
 
 Everything under the tree module is gated on `parser`, while the decoded model, the writer, the builder and the model validator are always available.
 
@@ -37,7 +37,7 @@ Check every combination that matters, so gated code never leaks into the always-
 
 ```sh
 cargo build                                          # default features
-cargo build --no-default-features                    # dependency-free core, no std leak
+cargo build --no-default-features                    # simd-cpu alone, no std leak
 cargo test --no-default-features --features parser   # the tree without codecs
 cargo test --all-features
 ```

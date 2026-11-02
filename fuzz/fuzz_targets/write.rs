@@ -26,6 +26,7 @@ fuzz_target!(|data: &[u8]| {
         allow_utf8_headers: flags & 8 != 0,
         flowed: flags & 16 != 0,
         legacy_name: flags & 32 != 0,
+        cpu: None,
     };
 
     let model = MimeCst::parse(data).decode();

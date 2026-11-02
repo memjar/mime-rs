@@ -16,6 +16,8 @@ pub mod fold;
 use alloc::{string::String, vec::Vec};
 use core::{error, fmt};
 
+use simd_cpu::SimdCpu;
+
 use crate::{
     header::{MimeHeaderKind, spec::MimeHeaderForm},
     mime::Mime,
@@ -60,6 +62,10 @@ pub struct MimeBuildOptions {
     /// `filename` also gets an encoded `name` parameter on its
     /// Content-Type, for readers that know neither RFC 2231 nor RFC 2183.
     pub legacy_name: bool,
+    /// The CPU features bodies are encoded under, or none, the default, for
+    /// [`SimdCpu::current`]: the token the application installed, or the
+    /// build target's baseline.
+    pub cpu: Option<SimdCpu>,
 }
 
 /// Why a message could not be built.

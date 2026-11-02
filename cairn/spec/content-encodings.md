@@ -10,7 +10,7 @@ The transfer encodings, character sets and text formats content arrives in, unde
 
 ### Requirement: Features as in vcard and ical
 
-Base64 SHALL sit behind the `base64` feature (the base64 crate) and charset transcoding behind `encoding` (encoding_rs), both default. Quoted-printable SHALL be decoded and encoded in-house and always be available, since the quoted_printable crate drops bytes outside printable ASCII and rewrites every line ending to CRLF, which loses data in mail. Without the feature an encoding needs, an encoded word of that encoding SHALL stay literal in the text form, a body of that encoding SHALL come out as written and be reported, and nothing SHALL be decoded silently or lossily in its place.
+Base64 SHALL sit behind the `base64` feature (the base64-codec crate) and charset transcoding behind `encoding` (encoding_rs), both default. Quoted-printable SHALL go through the quoted-printable-codec crate, in the core and always available; the quoted_printable crate is not used, as it drops bytes outside printable ASCII and rewrites every line ending to CRLF, which loses data in mail. Without the feature an encoding needs, an encoded word of that encoding SHALL stay literal in the text form, a body of that encoding SHALL come out as written and be reported, and nothing SHALL be decoded silently or lossily in its place.
 
 #### Scenario: A B-encoded subject without the base64 feature
 - GIVEN the crate built without `base64`, and `Subject: =?utf-8?B?w6k=?=`
@@ -19,15 +19,15 @@ Base64 SHALL sit behind the `base64` feature (the base64 crate) and charset tran
 
 ### Requirement: Base64 is liberal on reading
 
-Base64 decoding SHALL skip line breaks and blanks, skip and report every other byte outside the alphabet, accept missing padding, read data after padding as a second run and report it, and drop and report a lone trailing symbol. A well-formed body SHALL decode line by line through the crate, and only a damaged one through a filtering pass.
+Base64 decoding SHALL skip line breaks and blanks, skip and report every other byte outside the alphabet, accept missing padding, read data after padding as a second run and report it, and drop and report a lone trailing symbol.
 
 ### Requirement: Quoted-printable loses nothing on reading
 
-Quoted-printable decoding SHALL read `=XX` in either case, join soft line breaks including one followed by trailing blanks, drop the blanks a transport added at the end of a line (RFC 2045 6.7 rule 3), keep an `=` that starts no valid sequence literally and report it, pass raw 8-bit bytes through, and keep every line ending as written. In header mode (the RFC 2047 Q encoding) it SHALL read `_` as a space.
+Quoted-printable decoding SHALL read `=XX` in either case, reporting a lowercase digit, join soft line breaks including one followed by trailing blanks or ending the input, drop the blanks a transport added at the end of a line (RFC 2045 6.7 rule 3), up to 76 of them, the older ones kept as data, keep an `=` that starts no valid sequence literally and report it, pass raw 8-bit bytes and a bare CR through and report them, and keep every line ending as written. In header mode (the RFC 2047 Q encoding) it SHALL read `_` as a space and report only an `=` starting no escape.
 
 ### Requirement: The encoders are exact
 
-Base64 SHALL be written in lines of 76 characters, each ended by the given line ending, encoded a block of lines per call. Quoted-printable SHALL keep every line within 76 characters, soft break included, encode `=`, every byte outside printable ASCII, a blank ending a line, a leading `.` or `F` an SMTP or mbox reader could take for a marker, and a leading `-`, so that no line of the output can read as a MIME delimiter; in text mode an LF (with the CR before it when the line ending is CRLF) SHALL be a hard break written as the line ending and any other CR data. The Q encoding SHALL keep only letters, digits and `!*+-/` literal (RFC 2047 5(3)). Each SHALL decode, through this crate's decoders, to exactly its input, at every length around the line limit.
+Base64 SHALL be written in lines of 76 characters, each ended by the given line ending, the last one included. Quoted-printable SHALL keep every line within 76 characters, soft break included, encode, with the codec's guard on, `=`, every byte outside printable ASCII, a blank ending a line, a leading `.` or `F` an SMTP or mbox reader could take for a marker, and a leading `-`, so that no line of the output can read as a MIME delimiter; in text mode an LF (with the CR before it when the line ending is CRLF) SHALL be a hard break written as the line ending and any other CR data. The Q encoding SHALL keep only letters, digits and `!*+-/` literal (RFC 2047 5(3)). Each SHALL decode, through this crate's decoders, to exactly its input, at every length around the line limit.
 
 ### Requirement: Character sets
 
@@ -46,3 +46,12 @@ RFC 3676 decoding SHALL join a line ending in a space with the next line of the 
 - GIVEN a flowed leaf with `DelSp=yes` holding `Hello wor \r\nld\r\n`
 - WHEN its text is read
 - THEN it reads `Hello world\r\n`
+
+### Requirement: The CPU token is the application's
+
+No mime-rs function SHALL detect CPU features or install a token. A leaf accessor and an RFC 2047 encoded word SHALL decode under `SimdCpu::current()`, the token the application installed or `SimdCpu::BASELINE`. The builder SHALL encode under `MimeBuildOptions::cpu` when it is some, and under `SimdCpu::current()` otherwise. The functions of `codec` SHALL take their token from the caller.
+
+#### Scenario: An application that installs
+- GIVEN a process whose `main` calls `SimdCpu::install_detected()`, then parses a message with a base64 leaf nested two multiparts deep
+- WHEN the leaf is read with `decoded`, and the message is built back with the default `MimeBuildOptions`
+- THEN both run the detected token's backend

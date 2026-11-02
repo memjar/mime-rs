@@ -7,6 +7,8 @@
 
 use alloc::{borrow::Cow, boxed::Box, string::String, vec::Vec};
 
+use simd_cpu::SimdCpu;
+
 use crate::{
     codec::{charset, flowed, problems::MimeDecodeProblems, quoted_printable},
     header::{MimeHeader, MimeHeaderName, marker::MimeHeaderMarker},
@@ -169,7 +171,7 @@ impl<'a> MimeEntity<'a> {
         }
 
         let mut out = Vec::new();
-        quoted_printable::decode(raw, &mut out);
+        quoted_printable::decode(SimdCpu::current(), raw, &mut out);
         Some(out)
     }
 
@@ -184,7 +186,7 @@ impl<'a> MimeEntity<'a> {
         }
 
         let mut out = Vec::new();
-        crate::codec::base64::decode(raw, &mut out);
+        crate::codec::base64::decode(SimdCpu::current(), raw, &mut out);
         Some(out)
     }
 
@@ -202,13 +204,15 @@ impl<'a> MimeEntity<'a> {
         let bytes = match self.transfer_encoding() {
             MimeTransferEncoding::QuotedPrintable => {
                 let mut out = Vec::with_capacity(raw.len());
-                problems.malformed_encoding = !quoted_printable::decode(raw, &mut out);
+                problems.malformed_encoding =
+                    !quoted_printable::decode(SimdCpu::current(), raw, &mut out);
                 Cow::Owned(out)
             }
             #[cfg(feature = "base64")]
             MimeTransferEncoding::Base64 => {
                 let mut out = Vec::with_capacity(raw.len() / 4 * 3);
-                problems.malformed_encoding = !crate::codec::base64::decode(raw, &mut out);
+                problems.malformed_encoding =
+                    !crate::codec::base64::decode(SimdCpu::current(), raw, &mut out);
                 Cow::Owned(out)
             }
             MimeTransferEncoding::SevenBit

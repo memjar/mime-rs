@@ -24,6 +24,7 @@ use mime::{
     tree::{body::MimeBodyNode, cst::MimeCst, parse::MimeParseOptions},
     value::{address::MimeMailbox, content_type::MimeContentType, datetime::MimeDateTime},
 };
+use simd_cpu::SimdCpu;
 
 fn corpus() -> Vec<Vec<u8>> {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/corpus");
@@ -45,6 +46,7 @@ fn corpus() -> Vec<Vec<u8>> {
 }
 
 fn compare(c: &mut Criterion) {
+    install();
     let corpus = corpus();
     let bytes: u64 = corpus.iter().map(|message| message.len() as u64).sum();
     let parser = MessageParser::new();
@@ -192,6 +194,7 @@ fn compare(c: &mut Criterion) {
 /// The `build` workload: a text body, an HTML body, two attachments and an
 /// inline image, non-ASCII names and subject, written to bytes.
 fn build(c: &mut Criterion) {
+    install();
     let text = "Hello, here is the report you asked for.\n".repeat(50);
     let html = "<p>Hello, here is the <b>report</b> you asked for.</p>\n".repeat(80);
     let pdf: Vec<u8> = (0..50_000u32).map(|i| (i * 7 % 251) as u8).collect();
@@ -286,6 +289,7 @@ fn build(c: &mut Criterion) {
 /// attachment changed and the message written out; the rival is the only
 /// way to do it with mail-parser and mail-builder, a parse and a rebuild.
 fn edit(c: &mut Criterion) {
+    install();
     let pdf: Vec<u8> = (0..2 * 1024 * 1024u32)
         .map(|i| (i * 7 % 251) as u8)
         .collect();
@@ -381,6 +385,12 @@ fn attachment(top: &str, sub: &str, filename: Option<&str>, content: &[u8]) -> M
         content_id: None,
         content: content.to_vec(),
     }
+}
+
+/// Installs the detected CPU token, as an application does first thing in
+/// `main`; criterion owns `main`, so each group does, the first one winning.
+fn install() {
+    let _ = SimdCpu::install_detected();
 }
 
 criterion_group!(benches, compare, build, edit);

@@ -23,7 +23,7 @@ The builder SHALL lay a message out as mail-builder does: one part alone; text a
 
 ### Requirement: The options
 
-`MimeBuildOptions` SHALL state the line ending written (CRLF by default, LF for a local store), whether text may be `8bit` (8BITMIME), whether a leaf may be `binary` (BINARYMIME), whether fields may carry UTF-8 instead of encoded words (RFC 6532), whether `text/plain` with no `format` is written flowed (RFC 3676), and whether a part with a non-ASCII `filename` also gets an encoded `name` on its Content-Type for old readers, encoded words in a parameter that RFC 2047 5 forbids and the validator reports.
+`MimeBuildOptions` SHALL state the line ending written (CRLF by default, LF for a local store), whether text may be `8bit` (8BITMIME), whether a leaf may be `binary` (BINARYMIME), whether fields may carry UTF-8 instead of encoded words (RFC 6532), whether `text/plain` with no `format` is written flowed (RFC 3676), whether a part with a non-ASCII `filename` also gets an encoded `name` on its Content-Type for old readers, encoded words in a parameter that RFC 2047 5 forbids and the validator reports, and the CPU token bodies are encoded under, the installed one when none is given.
 
 ### Requirement: Headers are encoded where RFC 2047 allows
 
