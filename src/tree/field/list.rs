@@ -126,14 +126,14 @@ pub fn parse_comma_list(value: &[u8]) -> Vec<String> {
 }
 
 fn push_id(id: &[u8], ids: &mut Vec<String>) {
-    let id: Vec<u8> = id
-        .iter()
-        .copied()
-        .filter(|byte| !byte.is_ascii_whitespace())
-        .collect();
+    let mut id = id.to_vec();
+    id.retain(|byte| !byte.is_ascii_whitespace());
 
     if !id.is_empty() {
-        ids.push(String::from_utf8_lossy(&id).into_owned());
+        ids.push(
+            String::from_utf8(id)
+                .unwrap_or_else(|error| String::from_utf8_lossy(error.as_bytes()).into_owned()),
+        );
     }
 }
 

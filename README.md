@@ -84,8 +84,8 @@ The 153 messages of tests/corpus (RFC, legacy, third-party and malformed ones, a
 
 | MiB/s | structure | headers | header block | full |
 | --- | ---: | ---: | ---: | ---: |
-| **mime-rs** | **1,132** | **971** | **2,257** | **783** |
-| [mail-parser](https://crates.io/crates/mail-parser) 1.0 | *(-27%)* **829** | *(-16%)* **812** | *(-6%)* **2,120** | *(-5%)* **744** |
+| **mime-rs** | **1,257** | **1,071** | **2,478** | **863** |
+| [mail-parser](https://crates.io/crates/mail-parser) 1.0 | *(-36%)* **804** | *(-27%)* **786** | *(-15%)* **2,099** | *(-17%)* **717** |
 
 ### Building and editing
 
@@ -97,9 +97,9 @@ In GiB/s of message bytes:
 
 | GiB/s | build | edit | edit, header block |
 | --- | ---: | ---: | ---: |
-| **mime-rs** | **6.72** | **36.18** | **69.07** |
-| [mail-builder](https://crates.io/crates/mail-builder) 1.0 | *(-27%)* **4.91** | | |
-| [mail-parser](https://crates.io/crates/mail-parser) 1.0 and [mail-builder](https://crates.io/crates/mail-builder) 1.0 | | *(-81%)* **6.91** | *(-90%)* **6.91** |
+| **mime-rs** | **6.34** | **35.99** | **65.31** |
+| [mail-builder](https://crates.io/crates/mail-builder) 1.0 | *(-23%)* **4.85** | | |
+| [mail-parser](https://crates.io/crates/mail-parser) 1.0 and [mail-builder](https://crates.io/crates/mail-builder) 1.0 | | *(-82%)* **6.62** | *(-90%)* **6.62** |
 
 The libraries do different work: mail-parser builds a read-only index, mime-rs a tree every byte of which can be edited and written back.
 

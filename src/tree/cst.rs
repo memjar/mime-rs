@@ -74,21 +74,7 @@ impl<'a> MimeCst<'a> {
     /// Every entity, the root first, in document order.
     pub fn entities(&self) -> Vec<&MimeEntity<'a>> {
         let mut out = Vec::with_capacity(8);
-        let mut stack = Vec::with_capacity(8);
-        stack.push(&self.root);
-
-        while let Some(entity) = stack.pop() {
-            out.push(entity);
-
-            match &entity.body {
-                MimeBodyNode::Leaf(_) | MimeBodyNode::Unparsed(_) => {}
-                MimeBodyNode::Multipart(multipart) => {
-                    stack.extend(multipart.parts.iter().rev().map(|part| &part.entity));
-                }
-                MimeBodyNode::Message(nested) => stack.push(nested),
-            }
-        }
-
+        push_entities(&self.root, &mut out);
         out
     }
 
@@ -120,6 +106,23 @@ impl MimeCst<'_> {
         MimeCst {
             root: self.root.into_owned(),
         }
+    }
+}
+
+/// Pushes `entity`, then every entity under it in document order.
+// NOTE: the walk recurses as deep as the tree, as the serializer and the
+// tree's own drop do.
+fn push_entities<'s, 'a>(entity: &'s MimeEntity<'a>, out: &mut Vec<&'s MimeEntity<'a>>) {
+    out.push(entity);
+
+    match &entity.body {
+        MimeBodyNode::Multipart(multipart) => {
+            for part in &multipart.parts {
+                push_entities(&part.entity, out);
+            }
+        }
+        MimeBodyNode::Message(nested) => push_entities(nested, out),
+        MimeBodyNode::Leaf(_) | MimeBodyNode::Unparsed(_) => {}
     }
 }
 

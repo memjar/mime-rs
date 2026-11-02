@@ -73,7 +73,7 @@ impl<'a> MimeEntity<'a> {
     ///
     /// Borrowed from the field: the parameters are parsed only when asked.
     pub fn content_type(&self) -> MimeMediaType<'_> {
-        media_type(self.header.get_all("content-type").last())
+        media_type(self.header.get_all("Content-Type").last())
     }
 
     /// [`content_type`](Self::content_type) and
@@ -84,9 +84,9 @@ impl<'a> MimeEntity<'a> {
         let mut encoding = None;
 
         for field in self.header.fields() {
-            if field.is("content-type") {
+            if field.is("Content-Type") {
                 content_type = Some(field);
-            } else if field.is("content-transfer-encoding") {
+            } else if field.is("Content-Transfer-Encoding") {
                 encoding = Some(field);
             }
         }
@@ -102,7 +102,7 @@ impl<'a> MimeEntity<'a> {
     /// `7bit` with none (RFC 2045 6.1).
     pub fn transfer_encoding(&self) -> MimeTransferEncoding {
         self.header
-            .get_all("content-transfer-encoding")
+            .get_all("Content-Transfer-Encoding")
             .last()
             .map(|field| value::transfer_encoding(field.value()))
             .unwrap_or_default()
@@ -111,7 +111,7 @@ impl<'a> MimeEntity<'a> {
     /// The disposition, from the last Content-Disposition field.
     pub fn disposition(&self) -> Option<MimeDisposition> {
         self.header
-            .get_all("content-disposition")
+            .get_all("Content-Disposition")
             .last()
             .map(|field| content_type::parse_disposition(field.value()))
             .filter(|disposition| !disposition.kind.is_empty())

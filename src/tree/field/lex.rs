@@ -137,3 +137,11 @@ impl<'v> Lexer<'v> {
         &self.bytes[start..self.pos]
     }
 }
+
+/// Whether two names are equal, compared ASCII case-insensitively.
+// NOTE: compared exactly first, since a name is mostly written in the
+// spelling the crate looks it up by, which costs one comparison.
+#[inline]
+pub(crate) fn eq_ignore_case(a: &[u8], b: &[u8]) -> bool {
+    a == b || a.eq_ignore_ascii_case(b)
+}

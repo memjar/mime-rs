@@ -13,7 +13,7 @@ use crate::{
         rfc2047,
         rfc2231::{self, MimeRawParam},
     },
-    tree::field::lex::Lexer,
+    tree::field::lex::{Lexer, eq_ignore_case},
     value::content_type::{MimeContentType, MimeDisposition, MimeParam},
 };
 
@@ -46,13 +46,12 @@ impl<'v> MimeMediaType<'v> {
 
     /// Whether the type is `top/sub`, compared ASCII case-insensitively.
     pub fn is(&self, top: &str, sub: &str) -> bool {
-        self.top.eq_ignore_ascii_case(top.as_bytes())
-            && self.sub.eq_ignore_ascii_case(sub.as_bytes())
+        eq_ignore_case(self.top, top.as_bytes()) && eq_ignore_case(self.sub, sub.as_bytes())
     }
 
     /// Whether the top-level type is `top`, compared ASCII case-insensitively.
     pub fn is_top(&self, top: &str) -> bool {
-        self.top.eq_ignore_ascii_case(top.as_bytes())
+        eq_ignore_case(self.top, top.as_bytes())
     }
 
     /// The decoded value of the first parameter named `name`, compared
@@ -206,7 +205,7 @@ pub(crate) fn raw_params<'v, const N: usize>(
                 && found[..name.len()].eq_ignore_ascii_case(name.as_bytes())
                 && found[name.len()] == b'*';
 
-            if extended || found.eq_ignore_ascii_case(name.as_bytes()) {
+            if extended || eq_ignore_case(found, name.as_bytes()) {
                 settled[i] = true;
                 out[i] = if extended || rfc2047::contains_word_start(&value) {
                     full(name)

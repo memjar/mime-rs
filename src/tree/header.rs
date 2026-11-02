@@ -11,7 +11,7 @@ use alloc::{borrow::Cow, vec::Vec};
 
 use crate::{
     header::{MimeHeaderKind, spec::MimeHeaderForm},
-    tree::field::value,
+    tree::field::{lex::eq_ignore_case, value},
     value::MimeHeaderValue,
 };
 
@@ -102,8 +102,9 @@ impl MimeHeaderField<'_> {
     ///
     /// A name holding a space, a control byte or a NUL never matches, so a
     /// smuggled `Sub ject` is never read as `Subject`.
+    #[inline]
     pub fn is(&self, name: &str) -> bool {
-        self.name().eq_ignore_ascii_case(name.as_bytes())
+        eq_ignore_case(self.name(), name.as_bytes())
     }
 
     /// The name as text, lossily when it is not UTF-8.

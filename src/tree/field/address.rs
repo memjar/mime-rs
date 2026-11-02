@@ -189,16 +189,15 @@ impl Pending {
     }
 
     /// Splits bare words holding several addresses with no comma between
-    /// them, as `a@b.c\r\n\tjane@y.z`, one mailbox per address; the
-    /// comments stay with the first.
-    fn split(self) -> Vec<Self> {
+    /// them, as `a@b.c\r\n\tjane@y.z`, one mailbox per address handed to
+    /// `push`; the comments stay with the first.
+    fn split(self, mut push: impl FnMut(Self)) {
         let is_at = |word: &Word| matches!(word, Word::Atom(atom) if atom.contains(&b'@'));
 
         if self.address.is_some() || self.words.iter().filter(|word| is_at(word)).count() < 2 {
-            return Vec::from([self]);
+            return push(self);
         }
 
-        let mut out = Vec::new();
         let mut comments = Some(self.comments);
         let mut current = Vec::new();
         let mut seen_at = false;
@@ -207,7 +206,7 @@ impl Pending {
             let joined = current.last().is_some_and(|last| joins(last, &word));
 
             if seen_at && !joined {
-                out.push(Self {
+                push(Self {
                     words: core::mem::take(&mut current),
                     comments: comments.take().unwrap_or_default(),
                     address: None,
@@ -219,13 +218,11 @@ impl Pending {
             current.push(word);
         }
 
-        out.push(Self {
+        push(Self {
             words: current,
             comments: comments.take().unwrap_or_default(),
             address: None,
         });
-
-        out
     }
 
     fn mailbox(mut self) -> MimeMailbox {
@@ -298,14 +295,14 @@ fn finish(mailbox: &mut Pending, group: &mut Option<MimeGroup>, items: &mut Vec<
         return;
     }
 
-    for pending in core::mem::take(mailbox).split() {
+    core::mem::take(mailbox).split(|pending| {
         let mailbox = pending.mailbox();
 
         match group {
             Some(group) => group.mailboxes.push(mailbox),
             None => items.push(MimeAddress::Mailbox(mailbox)),
         }
-    }
+    });
 }
 
 /// The phrase words joined by single spaces, encoded words decoded, even
@@ -371,8 +368,11 @@ fn angle(lex: &mut Lexer<'_>, comments: &mut Vec<String>) -> String {
                 lex.bump();
             }
             _ => {
-                address.push(byte);
-                lex.bump();
+                // NOTE: the bytes up to the next one handled above are
+                // copied at once.
+                address.extend_from_slice(lex.until(|byte| {
+                    matches!(byte, b'>' | b'(' | b'"' | b' ' | b'\t' | b'\r' | b'\n')
+                }));
             }
         }
     }
@@ -384,7 +384,8 @@ fn angle(lex: &mut Lexer<'_>, comments: &mut Vec<String>) -> String {
         address.drain(..=colon);
     }
 
-    String::from_utf8_lossy(&address).into_owned()
+    String::from_utf8(address)
+        .unwrap_or_else(|error| String::from_utf8_lossy(error.as_bytes()).into_owned())
 }
 
 /// Whether two adjacent words of a bare address belong together: one ends
@@ -404,27 +405,34 @@ fn joins(before: &Word, after: &Word) -> bool {
 fn atom(lex: &mut Lexer<'_>) -> Vec<u8> {
     let mut word = Vec::new();
 
-    while let Some(byte) = lex.peek() {
-        if matches!(
-            byte,
-            b'(' | b')' | b'<' | b'>' | b',' | b';' | b':' | b'"' | b' ' | b'\t' | b'\r' | b'\n'
-        ) {
-            break;
+    // NOTE: the bytes up to a quoted pair are copied at once.
+    loop {
+        word.extend_from_slice(lex.until(|byte| {
+            matches!(
+                byte,
+                b'\\'
+                    | b'('
+                    | b')'
+                    | b'<'
+                    | b'>'
+                    | b','
+                    | b';'
+                    | b':'
+                    | b'"'
+                    | b' '
+                    | b'\t'
+                    | b'\r'
+                    | b'\n'
+            )
+        }));
+
+        if lex.peek() != Some(b'\\') {
+            return word;
         }
 
         lex.bump();
-
-        if byte == b'\\'
-            && let Some(escaped) = lex.bump()
-        {
-            word.push(escaped);
-            continue;
-        }
-
-        word.push(byte);
+        word.push(lex.bump().unwrap_or(b'\\'));
     }
-
-    word
 }
 
 /// A comment's text: quoted pairs unescaped, folds collapsed, encoded words

@@ -7,80 +7,72 @@ created: 2026-11-02
 
 # The scratch area
 
-The handoff for the next speed pass over the parse and the leaf readers, written at the end of [the-tree-built-in-place](../archive/the-tree-built-in-place/proposal.md) and rewritten at the end of [the-steps-inlined](../archive/the-steps-inlined/proposal.md), the pass that took it up, so a fresh session can take over. Read those two changes, their log entries and [benches/README.md](../../../benches/README.md) first. Part of [benchmarked-against-stalwart](../benchmarked-against-stalwart/proposal.md).
+The handoff for the next speed pass over the parse and the leaf readers, written at the end of [the-tree-built-in-place](../archive/the-tree-built-in-place/proposal.md) and rewritten at the end of each pass that took it up, [the-steps-inlined](../archive/the-steps-inlined/proposal.md) then [the-state-carries-no-data](../archive/the-state-carries-no-data/proposal.md), so a fresh session can take over. Read those changes, their log entries and [benches/README.md](../../../benches/README.md) first. Part of [benchmarked-against-stalwart](../benchmarked-against-stalwart/proposal.md).
 
 ## Where things stand
 
-Criterion on 2026-11-02 after the-steps-inlined (AMD Ryzen AI Max+ 395, Zen 5, rustc 1.99, bench pinned to core 4), mime-rs against mail-parser 1.0 and mail-builder 1.0:
+Criterion on 2026-11-02 after the-state-carries-no-data (AMD Ryzen AI Max+ 395, Zen 5, rustc 1.99, bench pinned to core 4, machine load near 3.5), mime-rs against mail-parser 1.0 and mail-builder 1.0:
 
 | workload | mime-rs | rival | ratio |
 | --- | ---: | ---: | ---: |
-| `structure` | 92.7 µs | 126.7 µs | 1.37x |
-| `headers` | 108.0 µs | 129.2 µs | 1.20x |
-| `headers`, structure depth 0, against `parse_headers` | 46.5 µs | 49.5 µs | 1.06x |
-| `full` | 134.0 µs | 141.2 µs | 1.05x |
-| `build` | 16.3 µs | 22.4 µs | 1.37x |
-| `edit` | 73.9 µs | 386.9 µs | 5.24x |
-| `edit`, structure depth 0 | 38.7 µs | 386.9 µs | 10.0x |
+| `structure` | 83.5 µs | 130.7 µs | 1.56x |
+| `headers` | 98.0 µs | 133.7 µs | 1.36x |
+| `headers`, structure depth 0, against `parse_headers` | 42.4 µs | 50.0 µs | 1.18x |
+| `full` | 121.6 µs | 146.4 µs | 1.20x |
+| `build` | 17.3 µs | 22.6 µs | 1.31x |
+| `edit` | 74.3 µs | 403.6 µs | 5.43x |
+| `edit`, structure depth 0 | 40.9 µs | 403.6 µs | 9.86x |
 
-Cycles per corpus pass from the harness below (user space, aligned build, codegen-units 1, medians of 7 interleaved runs), mime-rs then mail-parser: `structure` 431k against 623k, `headers` 522k against 634k, `lazy` (depth 0) 220k against 248k, `full` 625k against 705k, `edit` (parse and `to_bytes` of the 2 MiB message) 385k. Instructions per pass: 1,857k, 2,049k, 907k, 2,467k, 1,044k.
+Cycles per corpus pass from the harness below (user space, aligned build, codegen-units 1, medians of 7 interleaved runs), mime-rs then mail-parser in the same harness: `structure` 370k against 640k, `headers` 454k against 652k, `lazy` (depth 0) 188k against 249k, `full` 562k against 737k, `edit` (parse and `to_bytes` of the 2 MiB message) about 360k. Instructions per pass: 1,669k, 1,853k, 796k, 2,230k, 1,043k. Allocations per pass: the parse 1,390 plus 21 reallocations, `entities()` 153; the bench's From read 353 plus 26, its Message-ID read 34.
 
-Every row is ahead. The thinnest are `full` and the depth 0 row against `parse_headers`, 1.05x and 1.06x. The criterion and cycle ratios differ because the bench links memchr with its `std` feature (criterion turns it on: AVX2 kernels, runtime detection) while a harness depending on mime alone gets SSE2, and because of codegen units; trust each method against itself.
+Every row is ahead, the thinnest `headers` at depth 0 against `parse_headers` (1.18x) and `full` (1.20x).
 
 ## Where the time goes
 
-Cycles first, from `perf annotate` (sampled, user space): the last pass found that instruction counts hid store-forwarding stalls, a wide load waiting on narrower stores of the same bytes. Inlining the steps into `resume` removed the worst; two remain, together about a tenth of the `structure` and `lazy` cycles:
+Sampled cycles on `structure`: `resume` 30%, its entry and the multipart built on the stack then copied into its box (`Box::new`) the hot spots; memmem's searcher construction 7.6% (60% of it one stall inside memchr, copying the Rabin-Karp finder it has just built); `push_items` 8%; the allocator about 11%; Content-Type reading (`raw_params`, `Kind::of`, `media`) 7%; `entities()` 5%; the harness's own copies of what `content_type()` returns 7% (an artifact of `black_box`, the same in the criterion bench).
 
-- `mem::replace(&mut self.state, State::Done)` at the top of `resume` copies the whole state enum (Task-sized payload plus the unused tail of the larger variants), and loads bytes last written narrowly: the byte of `Task::digest` and its padding, or stale bytes of the variant's tail. Moving the `Split` out of the enum and making `digest` a word did not pay (instructions down, cycles flat): the stall moved to the next copy.
-- `mem::take(&mut self.root)` when the parse completes copies the root entity, whose anomaly byte and body were written just before; on `lazy` the root is the only entity, so the copy follows the writes closely. A field-wise move was 4% slower.
+On `lazy`, half the cycles are the four header reads: Subject's `decode_text` (three scans, then a copy into a `String`), the date reader (`str::parse` per number), From (seven allocations a read: a vector per word, the phrase buffer then its decoded copy, the mailbox list, and the bench's clone of the first mailbox), and `raw_params` reading the root's boundary only to decide whether its body is a container left unparsed or a leaf.
 
-Then instructions, callgrind on `structure` (exact counts, 100 passes):
+On `full`, `text_checked` is 9%, 78% of it one load: the problem flags `decoded_as` returns through memory, waited on until every store of the decoding has drained. Inlining `decoded_as` moved the wait to the next load (2% slower).
 
-- The allocator, about 20%. A pass allocates 1,554 blocks (plus 32 reallocations) for 153 messages and 529 entities, and `entities()` 306 more. About 600 are scratch: the answer buffer of `cst::answer` (64 slots, one per parse), and per multipart message the task vector, the path vector, the copy of the dash lines into `MimeParse::dashes` and the delimiter buffer. Dropping `MimeParse` is 3% on its own. The rest is the tree: one item vector per header block, a boxed `MimeMultipart` and a parts vector per multipart, a box per nested message.
-- Reading Content-Type, about 20% with the bench's own `content_type()`: the field name compares of `get_all("content-type")` (`[u8]::eq_ignore_ascii_case`, about 3%), `media` (about 160 instructions a call), `raw_params` for the boundary (about 570 instructions a multipart; the quoted value scan and the name compare). `Kind::of` no longer lexes a type opening with a letter other than `m`.
-- The dash-line search, 6.5%: building the memmem searcher a third of it (and a stall inside memchr's own constructor, 4% of the cycles), the search the rest; `line_delimiters` 5% (a `memcmp` call per candidate).
-- `full` alone: `text_checked` with `charset::transcode` and `is_utf8_label`, which trims and splits every label (`clean_label`) before six compares, about 5%.
+The failed store forwards per pass (`ls_bad_status2.stli_other`): `structure` 7.4k, `headers` 5.1k, `lazy` 1.7k, `full` 7.1k. They name the sites; their count is no cost (it barely moved while this pass cut 15% of the cycles).
 
 ## Levers, in order
 
-1. The two stalling copies of `resume`. The state copy wants a state whose resumable data is read field by field rather than copied whole, without a byte field padded inside a copied struct; the root copy wants the root's last writes far from the move, or no move. Confirm each try with `perf annotate` and an interleaved A/B, as a stall tends to move to the next copy.
-2. One scratch area per parse, unchanged from the first handoff: the task vector, the path, the delimiter buffer and the dash lines in one allocation, or the answer buffer handed to the coroutine as the dash-line store through a crate-private method, the public `resume(Some(&[usize]))` kept. The spec forbids asking for dash lines per nested multipart (superlinear), so the store stays. Worth about 2% per 250 allocations removed.
-3. `MimeCst::entities` with one allocation, pre-order kept, no recursion. Splicing children after their parent in the output is one allocation but quadratic on wide trees; a small fixed stack of part iterators spilling into a vector is linear.
-4. The dash-line searcher built once per caller: `memmem::Finder::new` is not const, core has no `OnceLock`, the crate forbids `unsafe`. A per-arch packed-pair finder or an answerer that outlives one parse are the shapes left; measure on `edit` too, where memmem's SIMD scan matters.
-5. The field name compare for the crate's own lowercase names (only the input side needs lowering), measured in cycles: the SWAR version lost.
-6. The SIMD answerers (D4) of benchmarked-against-stalwart, once mail-parser's kernel bench says they beat memchr.
+1. The dash-line searcher built once per caller: 7.6% of `structure`, 6% of `full`. `memmem::Finder::new` is not const, core has no lazy static and the crate forbids `unsafe`, so the shapes left are an answerer that outlives one parse (an API addition, say a reusable parser holding the finder, as mail-parser's `MessageParser`; the user's call) or a per-arch packed-pair finder (`memchr::arch::x86_64::sse2::packedpair::Finder` and its NEON twin, with a scalar tail under `min_haystack_len`; target-gated code against the goal of less code). Measure on `edit` too, where memmem's vector scan matters.
+2. One scratch area per parse: the answer buffer of `cst::answer` (one per parse), the dash lines, the task and delimiter vectors (four allocations per multipart message, one per single-part message), the public `resume(Some(&[usize]))` kept. The spec forbids asking for dash lines per nested multipart (superlinear), so the store stays. Worth about 30 cycles per allocation removed.
+3. The copies still stalling in `resume`: the multipart staged then copied by `Box::new` (writing it in its box with `Box::<MimeMultipart>::default()` was 2% slower, `Box::write` flat), the root moved out at completion. Confirm each with an A/B: a stall tends to move to the next copy.
+4. The From reader's allocations, then the Subject's: borrowing words from the field cut 94 allocations a pass for no cycles, so measure before taking any.
+5. The SIMD answerers (D4) of benchmarked-against-stalwart, once mail-parser's kernel bench says they beat memchr.
 
 ## Tried and dropped
 
-All on 2026-11-02, measured in cycles unless said. By the-tree-built-in-place:
+All on 2026-11-02, measured in cycles unless said.
 
-- Dash lines by `memchr` on `-` (criterion: `structure` 4% slower): the corpus has dash-heavy text and HTML.
-- A newline walk for dash lines under 4 KiB, memmem above: no gain beyond noise.
-- `Lexer::until` and `skip_fws` over `slice::position`: 2% more instructions on `structure`, 4% more cycles on `full`.
-- A word-at-a-time ASCII case-insensitive name compare (SWAR, exhaustively tested against core): 2% fewer instructions, 3% to 6% more cycles on `headers` and `lazy`.
-- `#[inline]` on `Delimiter::at`, and filling `self.dashes` in place instead of moving the copied vector: nothing.
-- `push_field` with `reserve(1)` first, or with a placeholder pushed then overwritten: nothing. What worked is `Vec::resize_with`, which computes the item after the capacity check and writes it in place (2.5%).
+By the-tree-built-in-place: dash lines by `memchr` on `-` (criterion: `structure` 4% slower, dash-heavy text in the corpus); a newline walk for dash lines under 4 KiB, memmem above (noise); `Lexer::until` and `skip_fws` over `slice::position` (2% more instructions, 4% more cycles on `full`); a word-at-a-time ASCII case-insensitive name compare (2% fewer instructions, 3% to 6% more cycles on `headers` and `lazy`); `#[inline]` on `Delimiter::at`; filling `self.dashes` in place instead of moving the copied vector; `push_field` with `reserve(1)` first or a placeholder overwritten (what worked is `Vec::resize_with`, which writes the item in place, 2.5%).
 
-By the-steps-inlined:
+By the-steps-inlined: the newline walk again (1% for 1% more instructions); `Lexer::until` over a local cursor (4% more instructions); the quoted-string scan of `quoted_cow` over `memchr2` (no change); `#[inline]` hints on `media` (ignored; only `#[inline(always)]` moves anything); `resume` `#[inline(always)]` into `cst::answer` (1% fewer instructions, 6% more cycles); the root entity moved out field by field (4% slower on `lazy`); the pending `Split` out of the state enum, alone and with `Task::digest` as a word (cycles flat); `Task::digest` as a word alone (1%); a byte search for `*` in `charset::clean_label` (0.2%).
 
-- The newline walk again, after the inlining: 1% on `structure` and `full` for 1% more instructions.
-- `Lexer::until` over a local cursor with `skip_fws` built on it: 4% more instructions everywhere.
-- The quoted-string scan of `quoted_cow` over `memchr2`: no change in instructions or cycles.
-- `#[inline]` hints on `media`: ignored by LLVM (identical instruction counts); only `#[inline(always)]` moves anything.
-- `resume` itself `#[inline(always)]` into `cst::answer`: 1% fewer instructions, 6% more cycles.
-- The root entity moved out field by field: 4% slower on `lazy`.
-- The pending `Split` out of the state enum, alone and with `Task::digest` as a word: instructions down 1.3%, cycles flat.
-- `Task::digest` as a word alone: 1% on `structure`, `headers` and `full`, not worth the odd type.
-- A byte search for `*` in `charset::clean_label`: 0.2% of `full`.
+By the-state-carries-no-data:
 
+- The memmem searcher searched in place by `Finder::find` instead of moved into `find_iter`'s iterator: fewer copies, cycles flat.
+- The multipart written in its box, its parts reserved then extended in place: 2% slower. `Box::write(Box::new_uninit(), ..)` for the multipart and the unparsed body: flat.
+- A field's colon found by a byte loop instead of `memchr2`: 6% slower everywhere, 100k more instructions; the vector search finds a short name's colon in one step.
+- `fields` and `get_all` double-ended, the last Content-Type looked up from the end: fewer instructions, cycles flat.
+- The date's numbers read by a digit fold instead of `str::parse` (checked against `parse` on two million inputs): flat.
+- Address words borrowed from the field (`Cow` atoms and quoted strings) and the phrase buffer kept as its string: 94 fewer allocations per pass, cycles flat.
+- `#[inline]` on `MimeEntity::content_type`: 3.6% slower on `structure`.
+- `decoded_as` `#[inline(always)]` into `text_checked`, so its problem flags stay in registers: 2% slower on `full`.
 
 ## Traps
 
-- Criterion medians move by 2% to 3% between builds of the same code (function layout), and more when other sessions build or test on the machine (load around 4 doubled a row's noise). One rebuilt-unchanged run showed `headers` 121.5 µs then 135.7 µs. Decide on cycles, report with criterion on a quiet machine, and check `uptime` before a criterion run.
-- perf works for user space only here (`perf_event_paranoid` is 2): `-e cycles:u` and `instructions:u` record and annotate; any call graph (`-g`, `--call-graph dwarf` or `lbr`) fails to open its events. Use callgrind (`nix-shell -p valgrind`) for inclusive costs and exact counts; it runs the SSE2 paths, so it has no AVX-512 trouble on the parse workloads.
-- Sampled hot spots skid: a store showing 90% of a function's samples was partly the cost of what precedes it. On this code a 16-byte load right after 8-byte and 4-byte stores of the same struct (a `Vec::push` of a multi-word value staged on the stack) is a real store-forwarding stall, but removing one moved the samples elsewhere for 2.5%, not the 20% the annotation suggested. Confirm every reading with a cycle count.
-- A parser rewrite needs the differential run below, not the tests alone: the tests passed on intermediate states the differential would also have passed, but they cover few fallback paths.
-- No git command may recover a file; edit code with the Edit tool rather than `perl -0pi` with braces in the pattern (a failed substitution once dropped an `impl` line).
+- One binary measured twice in single runs gave 438k then 414k cycles on `structure`, and mispredicts 1,181 then 785: only medians of interleaved runs decide. Two builds of nearly the same code still differ by up to 1.5% from layout.
+- Criterion compared against its saved numbers misleads once the machine's load changed (this pass's `build` read 6% slower against the morning's run while the two versions' benches, run interleaved, put it 5% faster). Build the previous tree's bench in its own target directory and interleave them.
+- The failed-forward event names stalls, but removing one often moves the wait to the next load: the decoded output's stores, a `Box::new` copy, the root move. Keep a change only for its cycles.
+- perf works for user space only here (`perf_event_paranoid` is 2): `-e cycles:u`, `instructions:u` and `ls_bad_status2.stli_other:u` record and annotate; call graphs fail. callgrind (`nix-shell -p valgrind`) gives exact counts and, with `--tree=caller`, who calls what (memcpy's callers, for one).
+- A build script that copies the binary after `cargo build` must stop on a failed build: one copied a stale binary and measured it.
+- No git command may recover a file; edit code with the Edit tool. A `perl` substitution using `|` as its delimiter turns every `\|` into an alternation: one rewrote the wrong line of src/tree/cst.rs this pass (restored from the scratch copy of the baseline).
+- The differential run never reached the address reader's comma-less split (the corpus holds none): it compares every field reader on random inputs now, and a planted break there was caught only then.
 
 ## How to measure
 
@@ -148,21 +140,9 @@ fn main() {
 }
 ```
 
-The driver: build aligned, then count cycles at two pass counts and divide the difference, which removes the corpus loading:
+The `edit` workload reads one message written by the bench's builder code (a text body and a 2 MiB `application/pdf` attachment) to a file once, then runs `MimeCst::parse` and `to_bytes` on it: when `work == "edit"`, replace the corpus with that file and add the arm `"edit" => { let cst = MimeCst::parse(black_box(m)); black_box(cst.to_bytes()); }`.
 
-```sh
-cd cyc
-RUSTFLAGS='-C llvm-args=-align-all-functions=6 -C llvm-args=-align-loops=64' \
-  nix develop /home/soywod/code/pimalaya/mime --command cargo build --release -q
-for w in structure headers lazy full; do
-  for n in 200 1200; do
-    nix-shell -p perf --run "taskset -c 4 perf stat -x, -e cycles:u,instructions:u target/release/cyc $w $n" 2>&1 >/dev/null | cut -d, -f1 | tr '\n' ' '
-    echo
-  done | awk -v w=$w 'NR==1{c=$1;i=$2} NR==2{printf "%-10s %8.1f kcycles %8.1f kinstr\n", w, ($1-c)/1e6, ($2-i)/1e6}'
-done
-```
-
-It repeats within 1% (3% on `lazy`) for one binary, but two builds of nearly the same code differ by up to 1.5% from layout alone. To compare two versions, keep both binaries and interleave them, 5 to 7 runs each, comparing medians and reading the instruction count beside the cycles (`ab.sh old-binary new-binary 7 structure headers lazy full`):
+Build it aligned with `RUSTFLAGS='-C llvm-args=-align-all-functions=6 -C llvm-args=-align-loops=64'`, stop on a failed build, and copy each version's binary aside under its own name. Count cycles at two pass counts and divide the difference, which removes the corpus loading. To compare two versions, interleave their binaries, 5 to 7 runs each, and compare medians, the instruction count beside the cycles (`ab.sh old-binary new-binary 7 structure headers lazy full`):
 
 ```sh
 A=$1; B=$2; r=$3; shift 3
@@ -179,15 +159,20 @@ for w in "$@"; do
 done
 ```
 
-The `edit` workload of the harness reads one message written by the bench's builder code (a text body and a 2 MiB `application/pdf` attachment) to a file once, then runs `MimeCst::parse` and `to_bytes` on it: when `work == "edit"`, replace the corpus with that file and add the arm `"edit" => { let cst = MimeCst::parse(black_box(m)); black_box(cst.to_bytes()); }`.
+To find stalling copies, add `ls_bad_status2.stli_other:u` and `ex_ret_brn_misp:u` to the `perf stat` events, and sample on the first (`perf record -c 2000 -e ls_bad_status2.stli_other:u`) with a build carrying debug info (`CARGO_PROFILE_RELEASE_DEBUG=1`, its own target directory), then `perf annotate -s '<full symbol name>'`; the symbol must be written out as `perf report` prints it.
 
-For a baseline of an older commit, `git archive <rev> | tar -x` into a scratch folder and point a second copy of the harness at it.
+For a baseline, copy the tree before the pass (src, tests, benches, Cargo.toml and Cargo.lock) into a scratch folder and point a second copy of the harness at it.
 
+The differential run, for any parser or reader change: copy src/ and Cargo.toml of the previous code into a scratch crate renamed `mime-old` (lib name `mime_old`, the `[features]` and `[dependencies]` sections kept, the examples and benches dropped), then:
 
-The differential run, for any parser change: copy src/ and Cargo.toml of the previous parser into a scratch crate renamed `mime-old` (lib name `mime_old`, the `[features]` and `[dependencies]` sections kept, the examples and benches dropped), then for the corpus and 300 rounds of random edits of it (byte replaced, removed or inserted from an alphabet of `-`, CR, LF, `:;="`, `boundary`, `multipart/mixed`, `message/rfc822`, `Multipart/Alternative`, `MESSAGE/RFC822`, `(c) `, HTAB, `M`, `m`, `*`, `text/plain`, chunks copied elsewhere), at `structure_depth` `None`, `Some(0)` and `Some(1)` with `max_entities: Some(40)` and `max_depth: Some(4)`, assert that `format!("{:?}")` of both trees match, that `to_bytes()` gives the input back, and that the expanded roots match. Also compare, entity by entity of a full parse, the media type, `param` of `boundary`, `charset`, `name`, `format` and `delsp`, `to_content_type`, `text_checked`, `decoded_checked`, `attachment_name`, and `decode()` of the whole tree. Break the old copy once on purpose, in the very code the change touches, to see it fail: with the first alphabet, a case-sensitive `multipart` compare planted in the old parser went unseen, as the corpus writes the type in lowercase only.
+- for the corpus and 300 rounds of random edits of it (byte replaced, removed or inserted from an alphabet of `-`, CR, LF, `:;="`, `boundary`, `multipart/mixed`, `message/rfc822`, `Multipart/Alternative`, `MESSAGE/RFC822`, `(c) `, HTAB, `M`, `m`, `*`, `text/plain`, chunks copied elsewhere), at `structure_depth` `None`, `Some(0)` and `Some(1)` with and without `max_entities: Some(40)` and `max_depth: Some(4)`, assert that `format!("{:?}")` of both trees match, that `to_bytes()` gives the input back, and that the expanded roots match; compare, entity by entity of a full parse, the media type, `param` of `boundary`, `charset`, `name`, `format` and `delsp`, `to_content_type`, `text_checked`, `decoded_checked`, `attachment_name`, and `decode()` of the whole tree;
+- drive both coroutines with the same noisy answerer (the memchr answer with positions inserted, removed, duplicated, swapped, or near `usize::MAX`, from one seed), `max_entities: Some(30)`, and assert both the request sequences and the trees match;
+- feed every field reader (`parse_addresses`, `parse_mailboxes`, `parse_message_ids`, `parse_urls`, `parse_comma_list`, `parse_date`, `parse_content_type`, `MimeMediaType` and its `param`, `is`, `is_top`) every field value of each parsed message and 400,000 random strings over an address alphabet (`@ < > , ; : " \ ( )`, blanks, folds, encoded words, non-ASCII bytes, digits, month names).
 
-Allocation counts: a scratch binary with a counting `#[global_allocator]` around `System`, counting allocations, reallocations and a size histogram over one corpus pass of `MimeCst::parse` plus `entities()`.
+Break the old copy once on purpose, in the very code the change touches, to see it fail.
+
+Allocation counts: a scratch binary with a counting `#[global_allocator]` around `System`, counting allocations, reallocations and a size histogram over one corpus pass of `MimeCst::parse` plus `entities()`, and of each of the four header reads.
 
 ## Before landing
 
-The suite (`cargo test --all-features` and `--no-default-features`), clippy with `--all-targets`, `cargo build --no-default-features` pulling only quoted-printable-codec and simd-cpu, docs with `-Dwarnings`, `cargo fmt`; the differential run for any parser change; a quiet-machine criterion run of the whole bench, its numbers in README.md (Benchmarks) and benches/README.md; a log entry, this change archived, and the handoff for the pass after it.
+The suite (`cargo test --all-features` and `--no-default-features`), clippy with `--all-targets` under both, `cargo build --no-default-features` pulling only quoted-printable-codec and simd-cpu, docs with `-Dwarnings`, `cargo fmt`; the differential run; a criterion run of the whole bench, the previous tree's bench interleaved when the load is not quiet, its numbers in README.md (Benchmarks) and benches/README.md; a log entry, the pass's change archived, and this handoff rewritten.
