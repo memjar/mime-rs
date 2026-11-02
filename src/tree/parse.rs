@@ -52,7 +52,7 @@
 //! assert_eq!(cst.to_bytes(), input);
 //! ```
 
-use alloc::{borrow::Cow, boxed::Box, vec, vec::Vec};
+use alloc::{borrow::Cow, boxed::Box, vec::Vec};
 use core::{mem, ops::Range};
 
 use crate::{
@@ -63,7 +63,8 @@ use crate::{
         cst::MimeCst,
         entity::MimeEntity,
         field::{
-            content_type::{MimeMediaType, raw_param},
+            content_type::{media, raw_params},
+            lex::Lexer,
             value,
         },
         header::{MimeHeaderBlock, MimeHeaderField, MimeHeaderItem},
@@ -157,13 +158,13 @@ impl<'a> MimeParse<'a> {
             max_depth: opts.max_depth.unwrap_or(DEPTH_MAX).max(1),
             max_entities: opts.max_entities.unwrap_or(ENTITIES_MAX).max(1),
             structure_depth: opts.structure_depth.unwrap_or(usize::MAX),
-            tasks: vec![root],
+            tasks: Vec::new(),
             root: MimeEntity::default(),
             path: Vec::new(),
             entities: 0,
             dashes: None,
             delimiters: Vec::new(),
-            state: State::Next,
+            state: State::Start(root),
         }
     }
 
@@ -188,7 +189,6 @@ impl<'a> MimeParse<'a> {
 
         let mut parse = Self::new(input, opts);
         parse.structure_depth = parse.structure_depth.saturating_add(1);
-        parse.tasks.clear();
         parse.root.header = header.clone();
         parse.state = State::Body(task);
         parse
@@ -217,6 +217,11 @@ impl<'a> MimeParse<'a> {
                         self.path.push(task.position);
                     }
 
+                    if let Some(request) = self.start(task) {
+                        return MimeCoroutineState::Yielded(request);
+                    }
+                }
+                State::Start(task) => {
                     if let Some(request) = self.start(task) {
                         return MimeCoroutineState::Yielded(request);
                     }
@@ -263,9 +268,9 @@ impl<'a> MimeParse<'a> {
                 State::FindNeedle(split) => {
                     let range = split.body.clone();
                     let input = self.input;
-                    let needle = split.boundary.to_vec();
+                    let needle = &*split.boundary;
                     let (found, dropped) = checked(arg.take(), &range, |i| {
-                        i + needle.len() <= range.end && input[i..].starts_with(&needle)
+                        i + needle.len() <= range.end && input[i..].starts_with(needle)
                     });
 
                     if dropped {
@@ -303,6 +308,11 @@ impl<'a> MimeParse<'a> {
 
     /// Starts an entity: settles a header block that needs no search, or
     /// asks for its field ends.
+    // NOTE: this step and the ones it leads to are inlined into `resume`:
+    // a request returned through memory was written by narrow stores then
+    // read back whole, which stalled the load (store forwarding failing)
+    // and cost more than the calls.
+    #[inline(always)]
     fn start(&mut self, task: Task) -> Option<MimeParseYield> {
         let input = self.input;
         let range = task.range.clone();
@@ -338,6 +348,7 @@ impl<'a> MimeParse<'a> {
 
     /// Builds the header block of an entity from its field ends, then its
     /// body.
+    #[inline(always)]
     fn entity(&mut self, task: Task, ends: &[usize], dropped: bool) -> Option<MimeParseYield> {
         let input = self.input;
         let end = task.range.end;
@@ -399,6 +410,7 @@ impl<'a> MimeParse<'a> {
 
     /// Records an entity and decides its body: a multipart to split, a
     /// nested message to parse, or a leaf.
+    #[inline(always)]
     fn body(
         &mut self,
         task: Task,
@@ -483,6 +495,7 @@ impl<'a> MimeParse<'a> {
     /// Splits a multipart at its delimiter lines, from the dash lines
     /// already found or, for the fallback, from the boundary's mid-line
     /// occurrences.
+    #[inline(always)]
     fn split(&mut self, split: Split<'a>, fallback: Option<&[usize]>) -> Option<MimeParseYield> {
         let input = self.input;
         let body = split.body.clone();
@@ -566,6 +579,7 @@ impl<'a> MimeParse<'a> {
     }
 
     /// Records the multipart its delimiters split, and queues its parts.
+    #[inline(always)]
     fn build(
         &mut self,
         split: Split<'a>,
@@ -641,6 +655,7 @@ impl<'a> MimeParse<'a> {
 
 #[derive(Debug)]
 enum State<'a> {
+    Start(Task),
     Next,
     Body(Task),
     FindFieldEnds(Task),
@@ -679,20 +694,33 @@ enum Kind<'a> {
 
 impl<'a> Kind<'a> {
     fn of(header: &MimeHeaderBlock<'a>, digest: bool) -> Self {
-        let field = header.get_all("content-type").last();
-        let (top, sub) = field.map_or((&[][..], &[][..]), |field| {
-            let media = MimeMediaType::new(field.value());
-            (media.top, media.sub)
-        });
+        let Some(field) = header.get_all("content-type").last() else {
+            return if digest { Self::Message } else { Self::Leaf };
+        };
+
+        // NOTE: a type opening with any letter but `m` is neither a multipart
+        // nor a message, which spares the common leaf its lexing.
+        let value = field.value();
+        let first = value.iter().find(|byte| !matches!(byte, b' ' | b'\t'));
+
+        if matches!(
+            first,
+            Some(b'a'..=b'l' | b'n'..=b'z' | b'A'..=b'L' | b'N'..=b'Z')
+        ) {
+            return Self::Leaf;
+        }
+
+        let mut lex = Lexer::new(value);
+        let (top, sub) = media(&mut lex);
 
         if top.is_empty() {
             return if digest { Self::Message } else { Self::Leaf };
         }
 
-        let message = top.eq_ignore_ascii_case(b"message")
-            && (sub.eq_ignore_ascii_case(b"rfc822") || sub.eq_ignore_ascii_case(b"global"));
-
         if !top.eq_ignore_ascii_case(b"multipart") {
+            let message = top.eq_ignore_ascii_case(b"message")
+                && (sub.eq_ignore_ascii_case(b"rfc822") || sub.eq_ignore_ascii_case(b"global"));
+
             return if message && identity_encoding(header) {
                 Self::Message
             } else {
@@ -701,19 +729,16 @@ impl<'a> Kind<'a> {
         }
 
         // NOTE: a boundary is borrowed from the input whenever the field is.
-        let boundary = field.and_then(|field| match field.borrowed_value() {
-            Some(value) => raw_param(value, "boundary"),
-            None => raw_param(field.value(), "boundary").map(|b| Cow::Owned(b.into_owned())),
-        });
+        let digest = sub.eq_ignore_ascii_case(b"digest");
+        let at = lex.pos;
+        let [boundary] = match field.borrowed_value() {
+            Some(bytes) => raw_params(Lexer { bytes, pos: at }, ["boundary"]),
+            None => raw_params(lex, ["boundary"]).map(|b| b.map(|b| Cow::Owned(b.into_owned()))),
+        };
 
-        {
-            match boundary.filter(|b| !b.is_empty()) {
-                Some(boundary) => Self::Multipart {
-                    boundary,
-                    digest: sub.eq_ignore_ascii_case(b"digest"),
-                },
-                None => Self::Leaf,
-            }
+        match boundary.filter(|b| !b.is_empty()) {
+            Some(boundary) => Self::Multipart { boundary, digest },
+            None => Self::Leaf,
         }
     }
 }
@@ -741,6 +766,9 @@ struct Delimiter {
 }
 
 impl Delimiter {
+    // NOTE: inlined so the delimiter stays in registers, for the reason the
+    // parse steps are.
+    #[inline(always)]
     fn at(
         input: &[u8],
         body: &Range<usize>,

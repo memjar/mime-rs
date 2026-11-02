@@ -17,15 +17,14 @@ MIME message parser, validator, editor and builder library for Rust
 
 ## Features
 
-- **Byte-faithful editing**: change a field, a recipient, a part or a transfer encoding, and every byte the edit does not name comes back unchanged, still borrowed from the input.
-- **Forgiving parser**: accept any bytes as a message, never fail, round-trip them unchanged, and report every recovery made on the way.
-- **Lazy by design**: parse the header block alone, split the body when asked, decode a part only when it is read.
-- **Pluggable searches**: parsing is an I/O-free coroutine that hands its byte searches to the caller, answered by memchr by default or by any code, a SIMD kernel included.
-- **Strict building**: compose messages checked against the standard, written deterministically (no clock, no randomness), with an escape hatch for raw fields and parts.
-- **Validation**: every rule a message breaks, violations and advisories told apart, the transport extensions it needs, and a proof type only a valid message earns.
-- **Submission helpers**: remove Bcc, fill the required fields, downgrade to 7bit, with protected content (signed or encrypted) sealed against edits.
-- **Small and portable**: no_std compatible, free of `unsafe`, with a core that pulls in no dependencies.
-- **Optional content decoding**: base64 and foreign character sets, each behind its own feature, while quoted-printable, encoded words, parameter continuations and flowed text are always there.
+- **Byte-faithful editing**: an edit rewrites what it names, every other byte comes back unchanged.
+- **Forgiving parser**: any bytes parse, round-trip unchanged, with every recovery reported.
+- **Lazy**: parse the header block alone, split the body or decode a part only when asked.
+- **I/O-free**: parsing is a coroutine handing its byte searches to the caller (memchr by default).
+- **Strict building**: messages checked against the standard and written deterministically.
+- **Validation**: every rule a message breaks, and a proof type only a valid message earns.
+- **Fast**: ahead of mail-parser and mail-builder on every benchmark, base64 and quoted-printable on SIMD codecs.
+- **Portable**: no_std, free of `unsafe`.
 
 > [!TIP]
 > mime-rs uses [cargo features](https://doc.rust-lang.org/cargo/reference/features.html) to gate optional support. The default feature set is declared in [Cargo.toml](./Cargo.toml) or on [docs.rs](https://docs.rs/crate/mime-rs/latest/features).
@@ -85,8 +84,8 @@ The 153 messages of tests/corpus (RFC, legacy, third-party and malformed ones, a
 
 | MiB/s | structure | headers | header block | full |
 | --- | ---: | ---: | ---: | ---: |
-| **mime-rs** | **992** | **860** | **2,098** | **722** |
-| [mail-parser](https://crates.io/crates/mail-parser) 1.0 | *(-17%)* **822** | *(-7%)* **802** | *(+3%)* **2,164** | *(+2%)* **735** |
+| **mime-rs** | **1,132** | **971** | **2,257** | **783** |
+| [mail-parser](https://crates.io/crates/mail-parser) 1.0 | *(-27%)* **829** | *(-16%)* **812** | *(-6%)* **2,120** | *(-5%)* **744** |
 
 ### Building and editing
 
@@ -98,9 +97,9 @@ In GiB/s of message bytes:
 
 | GiB/s | build | edit | edit, header block |
 | --- | ---: | ---: | ---: |
-| **mime-rs** | **6.69** | **36.05** | **63.95** |
-| [mail-builder](https://crates.io/crates/mail-builder) 1.0 | *(-26%)* **4.97** | | |
-| [mail-parser](https://crates.io/crates/mail-parser) 1.0 and [mail-builder](https://crates.io/crates/mail-builder) 1.0 | | *(-81%)* **6.84** | *(-89%)* **6.84** |
+| **mime-rs** | **6.72** | **36.18** | **69.07** |
+| [mail-builder](https://crates.io/crates/mail-builder) 1.0 | *(-27%)* **4.91** | | |
+| [mail-parser](https://crates.io/crates/mail-parser) 1.0 and [mail-builder](https://crates.io/crates/mail-builder) 1.0 | | *(-81%)* **6.91** | *(-90%)* **6.91** |
 
 The libraries do different work: mail-parser builds a read-only index, mime-rs a tree every byte of which can be edited and written back.
 

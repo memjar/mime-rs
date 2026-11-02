@@ -40,20 +40,7 @@ impl<'v> MimeMediaType<'v> {
     /// Reads the type and subtype of a raw Content-Type value, allocating
     /// nothing: comments and blanks skipped, the subtype stopping at `;`.
     pub fn new(raw: &'v [u8]) -> Self {
-        let mut lex = Lexer::new(raw);
-        lex.skip_cfws();
-
-        let top = lex.until(|byte| matches!(byte, b'/' | b';' | b'(') || is_blank(byte));
-        lex.skip_cfws();
-
-        if lex.peek() != Some(b'/') {
-            return Self { top, sub: &[], raw };
-        }
-
-        lex.bump();
-        lex.skip_cfws();
-
-        let sub = lex.until(|byte| matches!(byte, b';' | b'(') || is_blank(byte));
+        let (top, sub) = media(&mut Lexer::new(raw));
         Self { top, sub, raw }
     }
 
@@ -71,7 +58,8 @@ impl<'v> MimeMediaType<'v> {
     /// The decoded value of the first parameter named `name`, compared
     /// ASCII case-insensitively; parses the parameters.
     pub fn param(&self, name: &str) -> Option<String> {
-        raw_param(self.raw, name).map(|value| {
+        let [value] = self.raw_params([name]);
+        value.map(|value| {
             String::from_utf8(value.into_owned())
                 .unwrap_or_else(|error| String::from_utf8_lossy(error.as_bytes()).into_owned())
         })
@@ -83,7 +71,9 @@ impl<'v> MimeMediaType<'v> {
         &self,
         names: [&str; N],
     ) -> [Option<Cow<'v, [u8]>>; N] {
-        raw_params(self.raw, names)
+        let mut lex = Lexer::new(self.raw);
+        media(&mut lex);
+        raw_params(lex, names)
     }
 
     /// The whole value decoded, parameters included.
@@ -106,23 +96,11 @@ impl<'v> MimeMediaType<'v> {
 /// Refs: <https://datatracker.ietf.org/doc/html/rfc2045#section-5.1>
 pub fn parse_content_type(value: &[u8]) -> MimeContentType {
     let mut lex = Lexer::new(value);
-    lex.skip_cfws();
-
-    let top = lex.until(|byte| matches!(byte, b'/' | b';' | b'(') || is_blank(byte));
+    let (top, sub) = media(&mut lex);
 
     if top.is_empty() {
         return MimeContentType::default();
     }
-
-    lex.skip_cfws();
-
-    let sub: &[u8] = if lex.peek() == Some(b'/') {
-        lex.bump();
-        lex.skip_cfws();
-        lex.until(|byte| matches!(byte, b';' | b'(') || is_blank(byte))
-    } else {
-        &[]
-    };
 
     MimeContentType {
         top: String::from_utf8_lossy(top).into_owned(),
@@ -150,34 +128,34 @@ pub fn parse_disposition(value: &[u8]) -> MimeDisposition {
     }
 }
 
-/// The value of one parameter of a Content-Type or Content-Disposition
-/// value, read without decoding any other: unquoted and unescaped, or, for
-/// an RFC 2231 or encoded-word value, decoded by the full reader.
-pub(crate) fn raw_param<'v>(value: &'v [u8], name: &str) -> Option<Cow<'v, [u8]>> {
-    let [param] = raw_params(value, [name]);
-    param
+/// Reads the type and subtype opening a Content-Type value, comments and
+/// blanks skipped, the subtype stopping at `;`; the lexer is left on what
+/// follows, where a parameter may start with no `;`.
+pub(crate) fn media<'v>(lex: &mut Lexer<'v>) -> (&'v [u8], &'v [u8]) {
+    lex.skip_cfws();
+    let top = lex.until(|byte| matches!(byte, b'/' | b';' | b'(') || is_blank(byte));
+    lex.skip_cfws();
+
+    if lex.peek() != Some(b'/') {
+        return (top, &[]);
+    }
+
+    lex.bump();
+    lex.skip_cfws();
+    let sub = lex.until(|byte| matches!(byte, b';' | b'(') || is_blank(byte));
+    (top, sub)
 }
 
-/// [`raw_param`] for several names in one pass, each slot holding the first
-/// parameter of its name.
+/// The values of the first parameters named `names`, read in one pass from
+/// a lexer past the media type: unquoted and unescaped, or, for an RFC 2231
+/// or encoded-word value, decoded by the full reader.
 pub(crate) fn raw_params<'v, const N: usize>(
-    value: &'v [u8],
+    mut lex: Lexer<'v>,
     names: [&str; N],
 ) -> [Option<Cow<'v, [u8]>>; N] {
     let mut out = [const { None }; N];
     let mut settled = [false; N];
-    let mut lex = Lexer::new(value);
-
-    // NOTE: past the media type; a parameter may follow it with no `;`.
-    lex.skip_cfws();
-    lex.until(|byte| matches!(byte, b'/' | b';' | b'(') || is_blank(byte));
-    lex.skip_cfws();
-
-    if lex.peek() == Some(b'/') {
-        lex.bump();
-        lex.skip_cfws();
-        lex.until(|byte| matches!(byte, b';' | b'(') || is_blank(byte));
-    }
+    let value = lex.bytes;
 
     let full = |name: &str| {
         let params = parse_content_type(value).params;
@@ -245,16 +223,7 @@ pub(crate) fn raw_params<'v, const N: usize>(
 /// when the parameter is absent or written by RFC 2231.
 pub(crate) fn param_span(value: &[u8], name: &str) -> Option<Range<usize>> {
     let mut lex = Lexer::new(value);
-
-    lex.skip_cfws();
-    lex.until(|byte| matches!(byte, b'/' | b';' | b'(') || is_blank(byte));
-    lex.skip_cfws();
-
-    if lex.peek() == Some(b'/') {
-        lex.bump();
-        lex.skip_cfws();
-        lex.until(|byte| matches!(byte, b';' | b'(') || is_blank(byte));
-    }
+    media(&mut lex);
 
     loop {
         while matches!(lex.peek(), Some(b';')) {
