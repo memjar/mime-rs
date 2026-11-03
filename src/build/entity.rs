@@ -4,22 +4,23 @@
 //! order, then its body, with the structural fields made to state what the
 //! body is written as.
 //!
-//! - A text leaf is written in its declared charset when the build can
-//!   encode it there, else in UTF-8 with `charset=utf-8`; its line breaks
-//!   are written as the build's line ending.
-//! - A leaf keeps the transfer encoding its model declares when that
-//!   encoding is valid for the content and the options; otherwise a text
-//!   leaf is `7bit`, else `8bit` when allowed, else the shorter of
-//!   quoted-printable and base64, and any other leaf is `binary` when
-//!   allowed, else base64 (quoted-printable without the `base64` feature).
-//! - A multipart keeps its declared boundary unless it occurs in its
-//!   content, and is otherwise given `=_mime-rs_` and a counter, the next
-//!   value tried until one does not occur: no randomness.
-//! - A multipart or a nested message takes no transfer encoding but an
-//!   identity one (RFC 2045 6.4), and a nested message whose fields carry
-//!   UTF-8 is `message/global` (RFC 6532 3.7).
-//! - The root gets `MIME-Version: 1.0` before its first Content- field when
-//!   it has one and no MIME-Version.
+//! A text leaf is written in its declared charset when the build can encode
+//! it there, else in UTF-8 with `charset=utf-8`, its line breaks as the
+//! build's line ending.
+//!
+//! A leaf keeps its declared transfer encoding when valid for the content and
+//! the options. Otherwise a text leaf is `7bit`, else `8bit` if allowed, else
+//! the shorter of quoted-printable and base64; any other leaf is `binary` if
+//! allowed, else base64 (quoted-printable without the `base64` feature).
+//!
+//! A multipart keeps its declared boundary unless its content holds it, else
+//! gets `=_mime-rs_` and a counter, the next value tried until one does not
+//! occur: no randomness.
+//!
+//! A multipart or a nested message takes no transfer encoding but an identity
+//! one (RFC 2045 6.4), and a nested message whose fields carry UTF-8 is
+//! `message/global` (RFC 6532 3.7). The root gets `MIME-Version: 1.0` before
+//! its first Content- field when it has one and no MIME-Version.
 
 use alloc::{borrow::Cow, collections::BTreeSet, format, string::String, vec::Vec};
 use core::{iter, str};
@@ -135,8 +136,9 @@ pub(crate) fn write(
     Ok(())
 }
 
-/// What an entity's body is written as, and the structural fields stating
-/// it; under base64, its bytes are encoded as they are written out.
+/// What an entity's body is written as, and the structural fields stating it.
+///
+/// Under base64, its bytes are encoded as they are written out.
 struct Body<'m> {
     bytes: Cow<'m, [u8]>,
     content_type: Option<MimeContentType>,
@@ -196,8 +198,6 @@ fn text_leaf<'m>(
         .and_then(|content_type| content_type.param("charset"))
         .map(String::from);
 
-    // NOTE: a legacy charset is kept when the build can write the text in
-    // it; anything else is written as UTF-8 and labelled so.
     let legacy = label
         .as_deref()
         .filter(|label| !charset::is_utf8_label(label))
@@ -291,8 +291,9 @@ fn binary_leaf<'m>(
     }
 }
 
-/// Writes a multipart's parts apart, then picks a boundary none of them
-/// holds: the declared one when it qualifies, else the next generated one.
+/// Writes a multipart's parts apart, then picks a boundary none of them holds.
+///
+/// The declared one when it qualifies, else the next generated one.
 fn multipart<'m>(
     parts: &[Mime],
     mut content_type: MimeContentType,
@@ -384,9 +385,9 @@ fn message<'m>(
     })
 }
 
-/// A part of a `multipart/digest`, given an explicit `text/plain` when it
-/// is text with no Content-Type, which the digest would read as a message
-/// (RFC 2046 5.1.5).
+/// A digest part, given an explicit `text/plain` when it is untyped text.
+///
+/// A digest reads a part with no Content-Type as a message (RFC 2046 5.1.5).
 pub(crate) fn explicit(part: &Mime, digest: bool) -> Cow<'_, Mime> {
     let implicit = digest
         && matches!(part.body, MimeBody::Text(_))
@@ -405,8 +406,7 @@ pub(crate) fn explicit(part: &Mime, digest: bool) -> Cow<'_, Mime> {
     Cow::Owned(part)
 }
 
-/// The content type of a multipart: the declared one, which must be a
-/// `multipart`, or `multipart/mixed`.
+/// The declared multipart type or `multipart/mixed`; any other type fails.
 fn multipart_type(declared: Option<&MimeContentType>) -> Result<MimeContentType, MimeBuildError> {
     let content_type = declared.cloned().unwrap_or_else(|| MimeContentType {
         top: String::from("multipart"),
@@ -429,10 +429,10 @@ pub(crate) struct Boundaries<'t> {
 }
 
 impl<'t> Boundaries<'t> {
-    /// Generates boundaries avoiding `taken`, the boundaries of the
-    /// multiparts enclosing what is written, the counter starting past
-    /// every generated one among them, and the prefix changing its first
-    /// character when a taken boundary starts it.
+    /// Generates boundaries avoiding `taken`, the enclosing multiparts' ones.
+    ///
+    /// The counter starts past every generated one among them, and the prefix
+    /// changes its first character when a taken boundary starts it.
     pub(crate) fn new(taken: &'t [String]) -> Self {
         let blocks = |prefix: &str| taken.iter().any(|taken| prefix.starts_with(taken.as_str()));
         let prefix = iter::once(String::from(PREFIX))
@@ -459,9 +459,10 @@ impl<'t> Boundaries<'t> {
         }
     }
 
-    /// The next generated boundary: the prefix and a fixed-width counter,
-    /// so that no generated boundary starts another, skipping one that
-    /// conflicts with a taken boundary.
+    /// The next generated boundary that no taken boundary conflicts with.
+    ///
+    /// The prefix and a fixed-width counter, so no generated boundary starts
+    /// another.
     pub(crate) fn next(&mut self) -> String {
         loop {
             let boundary = format!("{}{:016x}", self.prefix, self.counter);
@@ -473,10 +474,10 @@ impl<'t> Boundaries<'t> {
         }
     }
 
-    /// The next generated boundary that occurs in none of `contents`, the
-    /// counters already there gathered in one pass, so content listing
-    /// many generated boundaries costs one scan rather than one per
-    /// candidate.
+    /// The next generated boundary that occurs in none of `contents`.
+    ///
+    /// The counters already there are gathered in one pass, so content listing
+    /// many generated boundaries costs one scan rather than one per candidate.
     pub(crate) fn fresh(&mut self, contents: &[&[u8]]) -> String {
         let prefix = self.prefix.as_bytes();
         let mut used = BTreeSet::new();
@@ -507,14 +508,16 @@ impl<'t> Boundaries<'t> {
         }
     }
 
-    /// Whether generated boundaries have the regular prefix, which never
-    /// occurs in base64 or quoted-printable output.
+    /// Whether generated boundaries have the regular prefix.
+    ///
+    /// It never occurs in base64 or quoted-printable output.
     pub(crate) fn regular(&self) -> bool {
         self.prefix == PREFIX
     }
 
-    /// Whether `boundary` neither equals, starts nor is started by a taken
-    /// boundary, which would make one delimiter line read as the other.
+    /// Whether `boundary` neither equals, starts nor is started by a taken one.
+    ///
+    /// Either would make one delimiter line read as the other.
     pub(crate) fn allows(&self, boundary: &str) -> bool {
         !self
             .taken
@@ -523,8 +526,7 @@ impl<'t> Boundaries<'t> {
     }
 }
 
-/// Writes the delimiter line opening a part, the line ending before it
-/// included past the first.
+/// Writes a part's opening delimiter line, past the first after a line ending.
 fn delimiter(boundary: &str, first: bool, eol: &[u8], out: &mut Vec<u8>) {
     if !first {
         out.extend_from_slice(eol);
@@ -535,8 +537,7 @@ fn delimiter(boundary: &str, first: bool, eol: &[u8], out: &mut Vec<u8>) {
     out.extend_from_slice(eol);
 }
 
-/// Writes the close delimiter line, the line ending before it included
-/// when a part precedes it.
+/// Writes the close delimiter line, after a line ending when a part precedes.
 fn close(boundary: &str, empty: bool, eol: &[u8], out: &mut Vec<u8>) {
     if !empty {
         out.extend_from_slice(eol);
@@ -548,10 +549,10 @@ fn close(boundary: &str, empty: bool, eol: &[u8], out: &mut Vec<u8>) {
     out.extend_from_slice(eol);
 }
 
-/// Whether an entity, once written, may hold the generated boundary prefix
-/// at the start of a line: a field name starting with `--`, a declared
-/// boundary of the generated shape, or content written as is that holds
-/// the prefix anywhere.
+/// Whether an entity, once written, may start a line with the boundary prefix.
+///
+/// A field name starting with `--`, a declared boundary of the generated
+/// shape, or content written as is that holds the prefix anywhere.
 fn tainted(mime: &Mime, opts: &MimeBuildOptions) -> bool {
     let names = mime
         .headers
@@ -585,9 +586,10 @@ fn tainted(mime: &Mime, opts: &MimeBuildOptions) -> bool {
         }
 }
 
-/// Encodes a leaf's content, keeping the declared transfer encoding when
-/// it is valid for the content, choosing one otherwise. Returns the bytes
-/// and the encoding to state, `None` for a `7bit` nothing declared.
+/// Encodes a leaf's content, keeping the declared encoding when valid for it.
+///
+/// Chooses one otherwise. Returns the bytes and the encoding to state, `None`
+/// for a `7bit` nothing declared.
 fn leaf<'b>(
     bytes: Cow<'b, [u8]>,
     text: bool,
@@ -635,10 +637,11 @@ fn leaf<'b>(
     (encode(cpu, &chosen, bytes, text, eol), Some(chosen))
 }
 
-/// Whether `encoding` can carry `bytes` under the options. Content written
-/// as is cannot when a line of it would read as a delimiter of a `taken`
-/// boundary, nor, ending in a CR, under LF, where a delimiter after it
-/// would take that CR for its own line ending.
+/// Whether `encoding` can carry `bytes` under the options.
+///
+/// Content written as is cannot when a line of it would read as a delimiter
+/// of a `taken` boundary, nor, ending in a CR, under LF, where a delimiter
+/// after it would take that CR for its own line ending.
 fn valid(
     encoding: &MimeTransferEncoding,
     bytes: &[u8],
@@ -659,8 +662,9 @@ fn valid(
     }
 }
 
-/// Whether a line of `bytes` starts with `--` and a `taken` boundary, as a
-/// delimiter line of an enclosing multipart.
+/// Whether a line of `bytes` starts with `--` and a `taken` boundary.
+///
+/// As a delimiter line of an enclosing multipart.
 pub(crate) fn holds_delimiter(bytes: &[u8], taken: &[String]) -> bool {
     !taken.is_empty()
         && bytes
@@ -690,9 +694,10 @@ fn encode<'b>(
     }
 }
 
-/// Whether bytes can be written as they are under `7bit`, or `8bit` with
-/// `eight`: no NUL, no CR or LF but in the line ending, no line over 998
-/// octets (RFC 2045 2.7 and 2.8).
+/// Whether bytes can be written as is under `7bit`, or `8bit` with `eight`.
+///
+/// No NUL, no CR or LF but in the line ending, no line over 998 octets (RFC
+/// 2045 2.7 and 2.8).
 pub(crate) fn fits(bytes: &[u8], eight: bool, eol: &[u8]) -> bool {
     if (!eight && !bytes.is_ascii()) || bytes.contains(&0) {
         return false;
@@ -716,8 +721,9 @@ pub(crate) fn fits(bytes: &[u8], eight: bool, eol: &[u8]) -> bool {
     true
 }
 
-/// Writes every line break of text (CRLF, or LF alone) as `eol`; a CR
-/// alone is content and is kept, except right before a line break written
+/// Writes every line break of text (CRLF, or LF alone) as `eol`.
+///
+/// A CR alone is content and is kept, except right before a line break written
 /// as LF, where it could not be told from the break when read back.
 fn line_breaks<'b>(bytes: Cow<'b, [u8]>, eol: &[u8]) -> Cow<'b, [u8]> {
     let mut lines = bytes.split(|byte| *byte == b'\n');
@@ -762,8 +768,9 @@ fn line_breaks<'b>(bytes: Cow<'b, [u8]>, eol: &[u8]) -> Cow<'b, [u8]> {
     Cow::Owned(out)
 }
 
-/// Writes the header block: the model's fields in order, the structural
-/// ones replaced by what the body is written as, then the empty line.
+/// Writes the model's header fields in order, without the empty line after.
+///
+/// The structural ones are replaced by what the body is written as.
 fn write_header(
     mime: &Mime,
     body: &Body<'_>,
@@ -867,9 +874,10 @@ fn write_header(
     Ok(())
 }
 
-/// The filename to repeat as a legacy `name` parameter: a non-ASCII
-/// `filename` of the last Content-Disposition, when the content type
-/// written has no `name`.
+/// The filename to repeat as a legacy `name` parameter, if any.
+///
+/// A non-ASCII `filename` of the last Content-Disposition, when the content
+/// type written has no `name`.
 fn legacy_name(mime: &Mime, body: &Body<'_>) -> Option<String> {
     let index = last(mime, MimeHeaderKind::ContentDisposition)?;
     let filename = mime.headers[index]
@@ -947,8 +955,7 @@ fn set_param(content_type: &mut MimeContentType, name: &str, value: &str) {
     }
 }
 
-/// Whether a boundary is 1 to 70 RFC 2046 5.1.1 `bchars`, not ending in a
-/// space.
+/// Whether a boundary is 1 to 70 RFC 2046 5.1.1 `bchars`, no trailing space.
 pub(crate) fn is_boundary(boundary: &str) -> bool {
     let bchar = |byte: u8| byte.is_ascii_alphanumeric() || b"'()+_,-./:=? ".contains(&byte);
 
@@ -970,8 +977,7 @@ pub(crate) fn contains(haystack: &[u8], needle: &[u8]) -> bool {
         .any(|(at, _)| haystack[at + 1..].starts_with(rest))
 }
 
-/// The length of the header block at the start of written bytes, its empty
-/// line excluded.
+/// The length of the header block opening written bytes, empty line excluded.
 fn header_len(bytes: &[u8], eol: &[u8]) -> usize {
     if bytes.starts_with(eol) {
         return 0;
@@ -987,8 +993,10 @@ fn header_len(bytes: &[u8], eol: &[u8]) -> usize {
         .map_or(bytes.len(), |at| at + eol.len())
 }
 
-/// About how many bytes an entity writes as: its content grown by base64's
-/// ratio and line breaks, and room for its header block.
+/// About how many bytes an entity writes as.
+///
+/// Its content grown by base64's ratio and line breaks, plus room for its
+/// header block.
 pub(crate) fn estimate(mime: &Mime) -> usize {
     let content = match &mime.body {
         MimeBody::Text(text) => text.len() * 7 / 5,
@@ -1000,8 +1008,7 @@ pub(crate) fn estimate(mime: &Mime) -> usize {
     content + 128 * (mime.headers.len() + 2)
 }
 
-/// Writes one header field, its line ending included, as the writer
-/// writes it.
+/// Writes one header field as the writer does, its line ending included.
 #[cfg(feature = "parser")]
 pub(crate) fn field_line(
     name: &MimeHeaderName,
@@ -1021,12 +1028,11 @@ pub(crate) fn field_line(
     Ok(out)
 }
 
-/// Encodes the content of a leaf as the writer would: the line breaks of
-/// text written as the build's line ending, `declared` kept when it is
-/// valid for the content and for the `taken` boundaries enclosing it, an
-/// encoding chosen otherwise. Returns the bytes
-/// as written and the encoding to state, `None` for a `7bit` nothing
-/// declared.
+/// Encodes the content of a leaf as the writer would.
+///
+/// Text line breaks become the build's line ending, `declared` is kept when
+/// valid for the content and its enclosing `taken` boundaries, else one is
+/// chosen. Returns the bytes and the encoding, `None` for an undeclared `7bit`.
 #[cfg(feature = "parser")]
 pub(crate) fn encode_leaf(
     content: &[u8],
@@ -1059,8 +1065,9 @@ pub(crate) fn encode_leaf(
     (out, encoding)
 }
 
-/// Whether a field name can be written: RFC 5322 2.2 `ftext`, at least
-/// one, and not starting with `--`, where a line would read as a delimiter.
+/// Whether a field name can be written: one or more RFC 5322 2.2 `ftext`.
+///
+/// Not starting with `--`, where a line would read as a delimiter.
 pub(crate) fn is_field_name(name: &str) -> bool {
     !name.is_empty()
         && !name.starts_with("--")

@@ -17,8 +17,9 @@ use crate::{
     value::content_type::{MimeContentType, MimeDisposition, MimeParam},
 };
 
-/// A Content-Type value read in place: the type and subtype borrowed from
-/// the field, the parameters parsed only when asked for.
+/// A Content-Type value read in place, its parameters parsed when asked.
+///
+/// The type and subtype are borrowed from the field.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct MimeMediaType<'v> {
     /// The top-level type, as written, empty when the value has none.
@@ -37,8 +38,9 @@ impl<'v> MimeMediaType<'v> {
         raw: b"",
     };
 
-    /// Reads the type and subtype of a raw Content-Type value, allocating
-    /// nothing: comments and blanks skipped, the subtype stopping at `;`.
+    /// Reads a raw Content-Type value's type and subtype, allocating nothing.
+    ///
+    /// Comments and blanks are skipped, the subtype stopping at `;`.
     pub fn new(raw: &'v [u8]) -> Self {
         let (top, sub) = media(&mut Lexer::new(raw));
         Self { top, sub, raw }
@@ -54,8 +56,9 @@ impl<'v> MimeMediaType<'v> {
         eq_ignore_case(self.top, top.as_bytes())
     }
 
-    /// The decoded value of the first parameter named `name`, compared
-    /// ASCII case-insensitively; parses the parameters.
+    /// The decoded value of the first parameter named `name`.
+    ///
+    /// Names compare ASCII case-insensitively; this parses the parameters.
     pub fn param(&self, name: &str) -> Option<String> {
         let [value] = self.raw_params([name]);
         value.map(|value| {
@@ -64,8 +67,9 @@ impl<'v> MimeMediaType<'v> {
         })
     }
 
-    /// The raw values of the first parameters named `names`, read in one
-    /// pass, borrowed from the field whenever they need no decoding.
+    /// The raw values of the first parameters named `names`, read in one pass.
+    ///
+    /// Borrowed from the field whenever they need no decoding.
     pub(crate) fn raw_params<const N: usize>(
         &self,
         names: [&str; N],
@@ -89,8 +93,10 @@ impl<'v> MimeMediaType<'v> {
     }
 }
 
-/// Reads a Content-Type value. A value with no type before its `/` or its
-/// first `;` reads as the default (empty) content type.
+/// Reads a Content-Type value.
+///
+/// A value with no type before its `/` or its first `;` reads as the default
+/// (empty) content type.
 ///
 /// Refs: <https://datatracker.ietf.org/doc/html/rfc2045#section-5.1>
 pub fn parse_content_type(value: &[u8]) -> MimeContentType {
@@ -127,9 +133,10 @@ pub fn parse_disposition(value: &[u8]) -> MimeDisposition {
     }
 }
 
-/// Reads the type and subtype opening a Content-Type value, comments and
-/// blanks skipped, the subtype stopping at `;`; the lexer is left on what
-/// follows, where a parameter may start with no `;`.
+/// Reads the type and subtype opening a Content-Type value.
+///
+/// Comments and blanks are skipped and the subtype stops at `;`. The lexer is
+/// left on what follows, where a parameter may start with no `;`.
 pub(crate) fn media<'v>(lex: &mut Lexer<'v>) -> (&'v [u8], &'v [u8]) {
     lex.skip_cfws();
     let top = lex.until(|byte| matches!(byte, b'/' | b';' | b'(') || is_blank(byte));
@@ -145,9 +152,10 @@ pub(crate) fn media<'v>(lex: &mut Lexer<'v>) -> (&'v [u8], &'v [u8]) {
     (top, sub)
 }
 
-/// The values of the first parameters named `names`, read in one pass from
-/// a lexer past the media type: unquoted and unescaped, or, for an RFC 2231
-/// or encoded-word value, decoded by the full reader.
+/// The values of the first parameters named `names`, read in one pass.
+///
+/// The lexer is past the media type. Values come unquoted and unescaped, or,
+/// for an RFC 2231 or encoded-word value, decoded by the full reader.
 pub(crate) fn raw_params<'v, const N: usize>(
     mut lex: Lexer<'v>,
     names: [&str; N],
@@ -217,9 +225,10 @@ pub(crate) fn raw_params<'v, const N: usize>(
     }
 }
 
-/// The byte range of the value of the parameter `name`, its quotes
-/// included, in a raw Content-Type or Content-Disposition value; `None`
-/// when the parameter is absent or written by RFC 2231.
+/// The byte range of the value of the parameter `name`, its quotes included.
+///
+/// Read in a raw Content-Type or Content-Disposition value; `None` when the
+/// parameter is absent or written by RFC 2231.
 pub(crate) fn param_span(value: &[u8], name: &str) -> Option<Range<usize>> {
     let mut lex = Lexer::new(value);
     media(&mut lex);

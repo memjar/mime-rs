@@ -6,10 +6,11 @@
 //! The crate decodes liberally and loses nothing: an `=` starting no valid
 //! sequence stays literal, a raw 8-bit byte and a bare CR pass through, and
 //! line endings come out as they went in; each of those, and a lowercase hex
-//! digit, is reported. Unlike the quoted_printable crate, which drops bytes
-//! outside printable ASCII and rewrites every line ending to CRLF, it keeps
-//! every byte. Bodies run the backend of the token their caller gives;
-//! encoded words run scalar code, too short for SIMD to matter.
+//! digit, is reported.
+//!
+//! Unlike the quoted_printable crate, it drops no byte outside printable
+//! ASCII and rewrites no line ending to CRLF. Bodies run under the caller's
+//! token; encoded words run scalar code, too short for SIMD to matter.
 
 use alloc::vec::Vec;
 
@@ -25,13 +26,11 @@ const Q: QuotedPrintableCodec = QuotedPrintableCodec {
     ..QuotedPrintableCodec::BASELINE
 };
 
-/// Decodes a quoted-printable body into `out` under `cpu`, returning whether
-/// the input was well-formed.
+/// Decodes a quoted-printable body into `out`; `true` when well-formed.
 ///
-/// `=XX` reads in either case; a soft line break (`=` before the end of a
-/// line or of the input, trailing blanks allowed between them) joins the two
-/// lines; the blanks a transport added at the end of a line are dropped (RFC
-/// 2045 6.7, rule 3), up to 76 of them; anything else is kept as written.
+/// `=XX` reads in either case; a soft break (`=` ending a line or the input,
+/// blanks allowed after it) joins two lines; up to 76 blanks a transport added
+/// at a line end are dropped (RFC 2045 6.7, rule 3); the rest stays as written.
 ///
 /// Refs: <https://datatracker.ietf.org/doc/html/rfc2045#section-6.7>
 pub fn decode(cpu: SimdCpu, input: &[u8], out: &mut Vec<u8>) -> bool {
@@ -43,26 +42,23 @@ pub fn decode(cpu: SimdCpu, input: &[u8], out: &mut Vec<u8>) -> bool {
     codec.decode_vec(input, out)
 }
 
-/// Decodes the text of an RFC 2047 Q encoded word into `out`, returning
-/// whether it was well-formed. `_` reads as a space.
+/// Decodes RFC 2047 Q encoded word text into `out`; `true` when well-formed.
+///
+/// `_` reads as a space.
 ///
 /// Refs: <https://datatracker.ietf.org/doc/html/rfc2047#section-4.2>
 pub fn decode_q(input: &[u8], out: &mut Vec<u8>) -> bool {
     Q.decode_vec(input, out)
 }
 
-/// Encodes `input` as a quoted-printable body under `cpu`, with lines of at
-/// most 76 characters, soft breaks included, each ending in `eol` (CRLF
-/// unless it is a bare LF).
+/// Encodes `input` as quoted-printable under `cpu`, in lines of 76 at most.
 ///
-/// With `text`, a line break of the input (an LF, or a CR and an LF) is a
-/// hard break written as `eol`, and any other CR is data; without `text`
-/// every byte is data and CR and LF are encoded. A blank ending a line is
-/// always encoded, and so is a `.` or `F` starting a line, which an SMTP or
-/// mbox reader could take for a marker, and a `-`, so that no line of the
-/// output can read as a MIME delimiter (RFC 2049 3(8)).
+/// `eol` (CRLF unless a bare LF) ends lines; with `text` LF and CRLF are hard
+/// breaks, lone CRs data, else CR and LF are encoded. A line's last blank and
+/// first `.`, `F` or `-` are encoded, lest SMTP, mbox or MIME see a marker.
 ///
-/// Refs: <https://datatracker.ietf.org/doc/html/rfc2045#section-6.7>
+/// Refs: <https://datatracker.ietf.org/doc/html/rfc2045#section-6.7>,
+/// <https://datatracker.ietf.org/doc/html/rfc2049#section-3>
 pub fn encode(cpu: SimdCpu, input: &[u8], text: bool, eol: &[u8], out: &mut Vec<u8>) {
     let codec = QuotedPrintableCodec {
         cpu: QuotedPrintableCpu::new(cpu),
@@ -80,8 +76,9 @@ pub fn encode(cpu: SimdCpu, input: &[u8], text: bool, eol: &[u8], out: &mut Vec<
     codec.encode_vec(input, out);
 }
 
-/// Encodes `input` as the text of an RFC 2047 Q encoded word: only
-/// letters, digits and `!*+-/` stay literal (the phrase-safe set of RFC
+/// Encodes `input` as the text of an RFC 2047 Q encoded word.
+///
+/// Only letters, digits and `!*+-/` stay literal (the phrase-safe set of RFC
 /// 2047 5(3)), a space becomes `_`, every other byte `=XX`.
 ///
 /// Refs: <https://datatracker.ietf.org/doc/html/rfc2047#section-5>

@@ -54,9 +54,10 @@ impl<'v> Lexer<'v> {
         }
     }
 
-    /// Reads a comment, the cursor on its opening parenthesis, and returns
-    /// its raw content (nested comments and escapes included, the outer
-    /// parentheses excluded).
+    /// Reads a comment, the cursor on its opening parenthesis.
+    ///
+    /// Returns its raw content, nested comments and escapes included, the
+    /// outer parentheses excluded.
     pub(crate) fn comment(&mut self) -> &'v [u8] {
         let mut depth = 0usize;
         let start = self.pos + 1;
@@ -81,8 +82,9 @@ impl<'v> Lexer<'v> {
         &self.bytes[start.min(self.bytes.len())..]
     }
 
-    /// Reads a quoted string, the cursor on its opening quote, unescaping
-    /// quoted pairs and unfolding line breaks (RFC 5322 3.2.4).
+    /// Reads a quoted string, the cursor on its opening quote (RFC 5322 3.2.4).
+    ///
+    /// Quoted pairs are unescaped and line breaks unfolded.
     pub(crate) fn quoted(&mut self) -> Vec<u8> {
         let mut out = Vec::new();
         self.pos += 1;
@@ -103,8 +105,7 @@ impl<'v> Lexer<'v> {
         out
     }
 
-    /// [`quoted`](Self::quoted), borrowed when the string holds no quoted
-    /// pair and no line break.
+    /// [`quoted`](Self::quoted), borrowed when it holds no pair or line break.
     pub(crate) fn quoted_cow(&mut self) -> Cow<'v, [u8]> {
         let start = self.pos + 1;
         let rest = self.bytes.get(start..).unwrap_or_default();

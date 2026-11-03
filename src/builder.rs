@@ -1,10 +1,9 @@
 //! # Message builder
 //!
-//! [`MimeBuilder`], the strict way to compose a message: message fields
-//! checked against their specs as they are set, a text body, an HTML body,
-//! inline resources and attachments laid out as mail-builder lays them
-//! out, and raw fields and parts as the escape hatch. It produces a decoded
-//! [`Mime`], which [`Mime::to_bytes`] writes.
+//! [`MimeBuilder`], the strict way to compose a message: fields checked
+//! against their specs as set, text and HTML bodies, inline resources and
+//! attachments laid out as mail-builder does, raw fields and parts as escape
+//! hatch. It yields a decoded [`Mime`], which [`Mime::to_bytes`] writes.
 //!
 //! The layout: one part alone; text and HTML in `multipart/alternative`;
 //! inline resources with the HTML in `multipart/related` (RFC 2387);
@@ -33,8 +32,9 @@ pub struct MimeAttachment {
     pub content_type: MimeContentType,
     /// The name it is offered to be saved under.
     pub filename: Option<String>,
-    /// The content identifier the HTML references it by (`cid:`), without
-    /// angle brackets; required for an inline resource.
+    /// The content identifier the HTML references (`cid:`), without brackets.
+    ///
+    /// Required for an inline resource.
     pub content_id: Option<String>,
     /// The content, written unchanged.
     pub content: Vec<u8>,
@@ -51,8 +51,7 @@ pub struct MimeBuilder {
 }
 
 impl MimeBuilder {
-    /// Sets a known field from its typed value, checked as
-    /// [`header_value`](Self::header_value) checks it.
+    /// Sets a known field from its typed value via [`Self::header_value`].
     pub fn header<M: MimeHeaderMarker>(
         &mut self,
         value: M::Value,
@@ -60,10 +59,11 @@ impl MimeBuilder {
         self.header_value(M::KIND, M::into_value(value))
     }
 
-    /// Sets a known field from a decoded value, refusing a value of
-    /// another form than the field's, a second instance of a field RFC
-    /// 5322 3.6 allows once, a field the builder writes itself, and a
-    /// message identifier that is not one.
+    /// Sets a known field from a decoded value, checked against its spec.
+    ///
+    /// Refuses a value of another form than the field's, a second instance of
+    /// a field RFC 5322 3.6 allows once, a field the builder writes itself, and
+    /// a message identifier that is not one.
     pub fn header_value(
         &mut self,
         kind: MimeHeaderKind,
@@ -111,9 +111,10 @@ impl MimeBuilder {
         Ok(self)
     }
 
-    /// Adds any field as written: `value` is everything after the colon,
-    /// its leading blank included. Refuses a name holding a byte RFC 5322
-    /// 2.2 does not allow, a field the builder writes itself, and a value
+    /// Adds any field as written: `value` is everything after the colon.
+    ///
+    /// The value includes its leading blank. Refuses a name holding a byte RFC
+    /// 5322 2.2 does not allow, a field the builder writes itself, and a value
     /// with a line break no blank follows.
     pub fn raw_header(&mut self, name: &str, value: &[u8]) -> Result<&mut Self, MimeBuildError> {
         if !is_field_name(name) {
@@ -166,8 +167,9 @@ impl MimeBuilder {
         Ok(self)
     }
 
-    /// Adds an inline resource the HTML body references by its
-    /// `content_id`, which it must have.
+    /// Adds an inline resource the HTML body references by its `content_id`.
+    ///
+    /// Refuses one without a `content_id`.
     pub fn inline(&mut self, resource: MimeAttachment) -> Result<&mut Self, MimeBuildError> {
         if resource.content_id.is_none() {
             return Err(MimeBuildError::InlineWithoutId);

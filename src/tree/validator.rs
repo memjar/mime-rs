@@ -1,11 +1,12 @@
 //! # Tree validation
 //!
 //! The validator over the syntax tree: the model rules of
-//! [`validator`](crate::validator), read from the fields as written, plus
-//! what only the wire shows: line lengths and line endings, stray control
-//! bytes, 8-bit bytes in fields, encoded words, content against its
-//! declared transfer encoding, boundaries, and what the parser worked
-//! around. The same walk computes
+//! [`validator`](crate::validator), read from the fields as written, plus what
+//! only the wire shows.
+//!
+//! The wire shows line lengths and endings, stray control bytes, 8-bit bytes
+//! in fields, encoded words, content against its declared transfer encoding,
+//! boundaries, and what the parser worked around. The same walk computes
 //! [`MimeTransport`](crate::validator::MimeTransport).
 
 use alloc::{string::String, vec::Vec};
@@ -31,8 +32,7 @@ use crate::{
 };
 
 impl MimeCst<'_> {
-    /// Every problem the message has, as written, and what it needs of a
-    /// transport.
+    /// Every problem the message has as written, and its transport needs.
     pub fn check(&self) -> MimeValidateOutput {
         let mut output = MimeValidateOutput::default();
         let eol = self.root.header.line_ending();
@@ -56,8 +56,9 @@ impl MimeCst<'_> {
         walk.output
     }
 
-    /// The message as a proof of validity, or every problem it has when
-    /// one is a violation.
+    /// The message as a proof of validity.
+    ///
+    /// Fails with every problem it has when one is a violation.
     pub fn validate(self) -> Result<MimeValid<Self>, MimeValidateOutput> {
         let output = self.check();
 
@@ -264,8 +265,10 @@ impl Walk {
         }
     }
 
-    /// Checks content against its declared transfer encoding (RFC 2045 2.7,
-    /// 2.8, 6.7, 6.8), and what it needs of a transport.
+    /// Checks content against its declared transfer encoding.
+    ///
+    /// Per RFC 2045 2.7, 2.8, 6.7 and 6.8, also noting what it needs of a
+    /// transport.
     fn leaf(&mut self, entity: usize, bytes: &[u8], encoding: &MimeTransferEncoding) {
         let eight = !bytes.is_ascii();
         let lines = Lines::of(bytes, self.eol);
@@ -349,8 +352,10 @@ impl Walk {
         }
     }
 
-    /// Checks the lines of a header item or of preamble and epilogue bytes:
-    /// 998 octets, and 78 characters for a field; stray CR, LF and NUL.
+    /// Checks the lines of a header item, or of preamble and epilogue bytes.
+    ///
+    /// Limits are 998 octets, and 78 characters in a header, which also refuses
+    /// stray CR, LF and NUL.
     fn lines(&mut self, entity: usize, field: Option<&str>, bytes: &[u8], header: bool) {
         let lines = Lines::of(bytes, self.eol);
 
@@ -439,16 +444,21 @@ impl Lines {
 enum DateSyntax {
     /// The current syntax of RFC 5322 3.3.
     Current,
-    /// The obsolete syntax of RFC 5322 4.3: a two- or three-digit year, a
-    /// named or military zone, a comment or blanks inside.
+    /// The obsolete syntax of RFC 5322 4.3.
+    ///
+    /// A two- or three-digit year, a named or military zone, a comment or
+    /// blanks inside.
     Obsolete,
-    /// Neither: time fields not of two digits, a zone neither `+hhmm` nor
-    /// named, a four-digit year before 1900, missing or stray parts.
+    /// Neither syntax.
+    ///
+    /// Time fields not of two digits, a zone neither `+hhmm` nor named, a
+    /// four-digit year before 1900, missing or stray parts.
     Invalid,
 }
 
-/// Reads a Date value against the RFC 5322 3.3 date-time and its RFC 5322
-/// 4.3 obsolete forms, names compared ASCII case-insensitively.
+/// Reads a Date value against RFC 5322 3.3 and its 4.3 obsolete forms.
+///
+/// Names compare ASCII case-insensitively.
 fn date_syntax(raw: &[u8]) -> DateSyntax {
     const DAYS: [&[u8]; 7] = [b"mon", b"tue", b"wed", b"thu", b"fri", b"sat", b"sun"];
     const MONTHS: [&[u8]; 12] = [
@@ -592,8 +602,9 @@ impl<'r> DateCursor<'r> {
         (self.run(u8::is_ascii_digit).len() == count).then_some(())
     }
 
-    /// Skips blanks, folds and comments, `None` on an unterminated comment;
-    /// a comment is the obsolete syntax, and so is no blank where `needed`.
+    /// Skips blanks, folds and comments, `None` on an unterminated comment.
+    ///
+    /// A comment is the obsolete syntax, and so is no blank where `needed`.
     fn cfws(&mut self, needed: bool) -> Option<()> {
         let start = self.at;
 
@@ -632,9 +643,10 @@ impl<'r> DateCursor<'r> {
     }
 }
 
-/// Whether a value holds an encoded word RFC 2047 forbids: longer than 75
-/// characters, or in a form where none may stand (inside a quoted string or
-/// an angle address, or in a parameter value).
+/// Whether a value holds an encoded word RFC 2047 forbids.
+///
+/// Longer than 75 characters, or where none may stand: inside a quoted string
+/// or an angle address, or in a parameter value.
 fn misplaced_words(raw: &[u8], form: MimeHeaderForm) -> bool {
     if !rfc2047::contains_word_start(raw) {
         return false;

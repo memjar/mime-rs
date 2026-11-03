@@ -37,8 +37,7 @@ pub struct MimeEntity<'a> {
     pub header: MimeHeaderBlock<'a>,
     /// The body.
     pub body: MimeBodyNode<'a>,
-    /// What the parser worked around in this entity, its descendants not
-    /// included.
+    /// What the parser worked around in this entity, its descendants excluded.
     pub anomalies: MimeAnomalies,
 }
 
@@ -68,17 +67,15 @@ impl<'a> MimeEntity<'a> {
         M::from_value(field.read_as(M::KIND.spec().form))
     }
 
-    /// The content type: the last Content-Type field, or `text/plain` with
-    /// none (RFC 2045 5.2).
+    /// The content type, `text/plain` with no field (RFC 2045 5.2).
     ///
-    /// Borrowed from the field: the parameters are parsed only when asked.
+    /// Read from the last Content-Type field and borrowed from it: the
+    /// parameters are parsed only when asked.
     pub fn content_type(&self) -> MimeMediaType<'_> {
         media_type(self.header.get_all("Content-Type").last())
     }
 
-    /// [`content_type`](Self::content_type) and
-    /// [`transfer_encoding`](Self::transfer_encoding), read in one walk of
-    /// the header block.
+    /// The content type and transfer encoding, read in one header block walk.
     fn content(&self) -> (MimeMediaType<'_>, MimeTransferEncoding) {
         let mut content_type = None;
         let mut encoding = None;
@@ -98,8 +95,9 @@ impl<'a> MimeEntity<'a> {
         (media_type(content_type), encoding)
     }
 
-    /// The transfer encoding: the last Content-Transfer-Encoding field, or
-    /// `7bit` with none (RFC 2045 6.1).
+    /// The transfer encoding, `7bit` with no field (RFC 2045 6.1).
+    ///
+    /// Read from the last Content-Transfer-Encoding field.
     pub fn transfer_encoding(&self) -> MimeTransferEncoding {
         self.header
             .get_all("Content-Transfer-Encoding")
@@ -117,8 +115,9 @@ impl<'a> MimeEntity<'a> {
             .filter(|disposition| !disposition.kind.is_empty())
     }
 
-    /// The name a part offers to be saved under: the disposition's
-    /// `filename`, else the content type's `name` (RFC 2183 2.3).
+    /// The name a part offers to be saved under (RFC 2183 2.3).
+    ///
+    /// The disposition's `filename`, else the content type's `name`.
     pub fn attachment_name(&self) -> Option<String> {
         let from_disposition = self
             .disposition()
@@ -127,10 +126,11 @@ impl<'a> MimeEntity<'a> {
         from_disposition.or_else(|| self.content_type().param("name"))
     }
 
-    /// Projects the entity onto the decoded model: every field read in its
-    /// default form, every text leaf read as text and every other leaf
-    /// transfer-decoded where the build can, an encoded nested message
-    /// parsed.
+    /// Projects the entity onto the decoded model.
+    ///
+    /// Every field is read in its default form, every text leaf as text and
+    /// every other leaf transfer-decoded where the build can; an encoded
+    /// nested message is parsed.
     pub fn decode(&self) -> Mime {
         let headers = self
             .header
@@ -172,14 +172,14 @@ impl<'a> MimeEntity<'a> {
         Mime { headers, body }
     }
 
-    /// The raw bytes of a leaf, still transfer-encoded; `None` for a
-    /// multipart or a message.
+    /// A leaf's raw bytes, still transfer-encoded; `None` for any other body.
     pub fn bytes(&self) -> Option<&[u8]> {
         self.body.leaf()
     }
 
-    /// A leaf's quoted-printable decoded, or its raw bytes when it is not
-    /// quoted-printable. Still in its own charset.
+    /// A leaf's quoted-printable decoded, still in its own charset.
+    ///
+    /// The raw bytes when the leaf is not quoted-printable.
     pub fn quoted_printable(&self) -> Option<Vec<u8>> {
         let raw = self.bytes()?;
 
@@ -207,8 +207,9 @@ impl<'a> MimeEntity<'a> {
         Some(out)
     }
 
-    /// A leaf transfer-decoded by whichever decoders the build carries,
-    /// borrowed when its encoding is the identity.
+    /// A leaf transfer-decoded by whichever decoders the build carries.
+    ///
+    /// Borrowed when its encoding is the identity.
     pub fn decoded(&self) -> Option<Cow<'_, [u8]>> {
         self.decoded_checked().map(|(bytes, _)| bytes)
     }
@@ -256,10 +257,11 @@ impl<'a> MimeEntity<'a> {
         self.decoded().map(|bytes| bytes.len())
     }
 
-    /// A leaf's text: transfer-decoded, transcoded from its `charset` (a
-    /// byte order mark taking precedence, UTF-8 without one), and unwrapped
-    /// when it is `format=flowed` (RFC 3676). `None` for a multipart or a
-    /// message, and for a charset this build cannot transcode.
+    /// A leaf's text, transfer-decoded and transcoded from its `charset`.
+    ///
+    /// A byte order mark takes precedence, UTF-8 without either, and a
+    /// `format=flowed` text is unwrapped (RFC 3676). `None` for any other
+    /// body, and for a charset this build cannot transcode.
     pub fn text(&self) -> Option<Cow<'_, str>> {
         self.text_checked().map(|(text, _)| text)
     }
@@ -304,8 +306,9 @@ impl<'a> MimeEntity<'a> {
         Some((Cow::Owned(flowed::decode(&text, delsp)), problems))
     }
 
-    /// At most `chars` characters of a leaf's text, decoding only as much of
-    /// the leaf as they need.
+    /// At most `chars` characters of a leaf's text.
+    ///
+    /// Decodes only as much of the leaf as they need.
     pub fn text_prefix(&self, chars: usize) -> Option<String> {
         let raw = self.bytes()?;
         let mut take = (chars * 16).max(64);
@@ -339,12 +342,11 @@ impl<'a> MimeEntity<'a> {
         }
     }
 
-    /// An encoded `message/rfc822` or `message/global` leaf, decoded and
-    /// parsed as an owned tree; `None` for any other entity, and for one
-    /// whose content opens with no header field.
+    /// An encoded `message/rfc822` or `message/global` leaf, as an owned tree.
     ///
-    /// The structural parse keeps such a leaf as it is, since RFC 2046 5.2.1
-    /// forbids encoding a message; it is parsed here, one level per call.
+    /// `None` for any other entity, and for content opening with no field.
+    /// The parse keeps such a leaf whole, since RFC 2046 5.2.1 forbids
+    /// encoding a message; it is decoded and parsed here, one level per call.
     pub fn nested(&self) -> Option<MimeCst<'static>> {
         let content_type = self.content_type();
         let message = content_type.is("message", "rfc822") || content_type.is("message", "global");
@@ -366,10 +368,11 @@ impl<'a> MimeEntity<'a> {
         Some(MimeCst::parse(&bytes).into_owned())
     }
 
-    /// Splits a body the parse left [`Unparsed`](MimeBodyNode::Unparsed),
-    /// answering the searches through memchr, as [`MimeCst::parse_with`]
-    /// does; any other body is kept. The structure depth counts from this
-    /// entity, and what the split works around joins its anomalies.
+    /// Splits a body the parse left [`Unparsed`](MimeBodyNode::Unparsed).
+    ///
+    /// Searches are answered through memchr, as [`MimeCst::parse_with`] does;
+    /// any other body is kept. The structure depth counts from this entity,
+    /// and what the split works around joins its anomalies.
     pub fn expand(&mut self, opts: MimeParseOptions) {
         let MimeBodyNode::Unparsed(unparsed) = &self.body else {
             return;
@@ -400,8 +403,9 @@ impl<'a> MimeEntity<'a> {
         }
     }
 
-    /// The RFC 8621 4.1.4 text body, HTML body and attachment lists of the
-    /// message rooted here.
+    /// The RFC 8621 4.1.4 body lists of the message rooted here.
+    ///
+    /// Its text body, HTML body and attachment lists.
     pub fn body_lists(&self) -> MimeBodyLists<'_, 'a> {
         MimeBodyLists::new(self)
     }
@@ -421,8 +425,7 @@ impl<'a> MimeEntity<'a> {
     }
 }
 
-/// The media type a Content-Type field states, `text/plain` with none or
-/// with one stating no type (RFC 2045 5.2).
+/// A Content-Type field's media type, else `text/plain` (RFC 2045 5.2).
 fn media_type<'f>(field: Option<&'f MimeHeaderField<'_>>) -> MimeMediaType<'f> {
     field
         .map(|field| MimeMediaType::new(field.value()))

@@ -12,5 +12,5 @@ change: ready-for-a-first-release
 - [x] Examples listed in the proposal, each in Cargo.toml with its path and required features
 - [x] README.md, benches/README.md, CONTRIBUTING.md, fuzz/README.md, AGENTS.md, SECURITY.md, the tests workflow
 - [x] CHANGELOG.md `[Unreleased]` written
-- [ ] Guidelines conformance table, every row PASS or N/A (open rows: inline-002 summaries over one line, markdown-006 paragraphs over three lines, crate-006 cfg inside charset function bodies, naming-013 parse state names)
+- [x] Guidelines conformance table, every row PASS or N/A (2026-11-03: every multi-line doc summary cut to one line, the charset gates moved onto items, the parse state named by its actions, the benchmark tables moved to benches/README.md, long markdown paragraphs split, Cargo dependencies ordered, package.nix and cairn/verify.sh added; the version reads 0.1.0 and CHANGELOG.md has its 0.1.0 section, the codecs still pinned by git rev until their next release)
 - [ ] Write the log entry, archive this change, hand release to the user

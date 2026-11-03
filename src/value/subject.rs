@@ -5,8 +5,7 @@
 
 use alloc::string::String;
 
-/// The reply prefixes recognised, lowercased: RFC 5256's `re` and the
-/// localized spellings mailers write.
+/// The reply prefixes, lowercased: RFC 5256's `re` and localized spellings.
 ///
 /// NOTE: this table and [`FORWARDS`] come from mail-parser (Apache-2.0 OR
 /// MIT, Copyright (C) 2020 Stalwart Labs LLC).
@@ -157,11 +156,11 @@ const FORWARDS: &[&str] = &[
 /// The longest prefix word looked at.
 const PREFIX_MAX: usize = 40;
 
-/// The base subject of `subject`: leading reply and forward prefixes
-/// (`Re:`, `Fwd:`, `Re[2]:`, their localized spellings, and any word of
-/// four letters or fewer before a colon), bracketed list tags before them,
-/// `[fwd: ...]` wrappers and trailing `(fwd)` markers removed, repeatedly,
-/// blanks trimmed. Borrows from `subject`.
+/// The base subject of `subject`: a trimmed slice of it, stripped repeatedly.
+///
+/// Strips leading reply and forward prefixes (`Re:`, `Fwd:`, `Re[2]:`, their
+/// localized spellings, any word of four letters or fewer before a colon),
+/// list tags before them, `[fwd: ...]` wrappers and trailing `(fwd)` markers.
 ///
 /// Refs: <https://datatracker.ietf.org/doc/html/rfc5256#section-2.1>
 pub fn base_subject(subject: &str) -> &str {
@@ -185,7 +184,6 @@ fn strip_trailers(mut text: &str) -> &str {
     loop {
         text = text.trim_end();
 
-        // NOTE: `(fwd)` and its localized spellings, as `(wg)`.
         let marker = text
             .strip_suffix(')')
             .and_then(|head| head.rfind('(').map(|open| (open, &head[open + 1..])))
@@ -198,8 +196,9 @@ fn strip_trailers(mut text: &str) -> &str {
     }
 }
 
-/// Removes leading list tags and reply or forward prefixes (RFC 5256 2.1
-/// step 3), a tag only when something follows it.
+/// Removes leading list tags and reply or forward prefixes.
+///
+/// RFC 5256 2.1 step 3, a tag only when something follows it.
 fn strip_leaders(mut text: &str) -> &str {
     loop {
         text = text.trim_start();

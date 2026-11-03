@@ -9,11 +9,10 @@
 //!
 //! ## Layers
 //!
-//! The crate is `no_std` and free of `unsafe`. The decoded model
-//! ([`mime`], [`header`], [`value`]) needs nothing: a [`Mime`] is a message
-//! as pure data, its fields read in their RFC 8621 forms, [`header::spec`]
-//! stating what the RFCs allow of each field and [`header::marker`] keying
-//! typed access by field name.
+//! The crate is `no_std` and free of `unsafe`. The decoded model ([`mime`],
+//! [`header`], [`value`]) needs nothing: a [`Mime`] is a message as pure data,
+//! fields in their RFC 8621 forms, [`header::spec`] states what the RFCs allow
+//! of each field and [`header::marker`] keys typed access by field name.
 //!
 //! The content codecs ([`codec`]) decode on demand: quoted-printable,
 //! RFC 2047 encoded words, RFC 2231 parameters and RFC 3676 flowed text
@@ -33,7 +32,7 @@
 //!
 //! | feature | default | pulls | gives |
 //! | --- | --- | --- | --- |
-//! | `parser` | yes | memchr | the syntax tree, its readers, edits and wire validation |
+//! | `parser` | yes | memchr | syntax tree, readers, edits, wire validation |
 //! | `base64` | yes | base64 | base64 bodies and B encoded words |
 //! | `encoding` | yes | encoding_rs | charsets beyond UTF-8 and US-ASCII |
 //!
@@ -42,7 +41,11 @@
 //! ## Example
 //!
 //! ```rust
-//! # #[cfg(all(feature = "parser", feature = "base64", feature = "encoding"))] {
+//! # #[cfg(all(
+//! #     feature = "parser",
+//! #     feature = "base64",
+//! #     feature = "encoding",
+//! # ))] {
 //! use mime::{
 //!     build::MimeBuildOptions,
 //!     header::marker::{FROM, SUBJECT},
@@ -59,15 +62,18 @@
 //!
 //! let mut cst = MimeCst::parse(raw.as_bytes());
 //! let from = cst.root.header::<FROM>().unwrap();
-//! assert_eq!(from.first().unwrap().address.as_deref(), Some("alice@example.com"));
-//! assert_eq!(cst.root.header::<SUBJECT>().as_deref(), Some("Draft number one"));
+//! let address = from.first().unwrap().address.as_deref();
+//! assert_eq!(address, Some("alice@example.com"));
+//! let subject = cst.root.header::<SUBJECT>();
+//! assert_eq!(subject.as_deref(), Some("Draft number one"));
 //!
 //! // NOTE: an edit rewrites the field it names and nothing else.
 //! let opts = MimeBuildOptions::default();
 //! cst.header_mut(0).unwrap().set::<SUBJECT>("Café".into(), &opts).unwrap();
 //!
 //! let bytes = cst.to_bytes();
-//! assert!(bytes.starts_with(b"From: Alice <alice@example.com>\r\nSubject: =?utf-8?"));
+//! let head = b"From: Alice <alice@example.com>\r\nSubject: =?utf-8?";
+//! assert!(bytes.starts_with(head));
 //! assert!(bytes.ends_with(b"\r\n\r\nHello\r\n"));
 //! # }
 //! ```

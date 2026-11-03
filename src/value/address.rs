@@ -62,8 +62,9 @@ impl MimeMailbox {
 }
 
 impl MimeAddressList {
-    /// Every mailbox, group members included, in document order: the RFC
-    /// 8621 4.1.2.3 flat form.
+    /// Every mailbox, group members included, in document order.
+    ///
+    /// The RFC 8621 4.1.2.3 flat form.
     pub fn mailboxes(&self) -> impl Iterator<Item = &MimeMailbox> {
         self.items.iter().flat_map(|item| match item {
             MimeAddress::Mailbox(mailbox) => core::slice::from_ref(mailbox).iter(),

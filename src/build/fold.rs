@@ -1,10 +1,9 @@
 //! # Folding
 //!
-//! The writer of one header field line: words separated by single spaces,
-//! folded before a separating space whenever the next word would push the
-//! line past [`LINE_TARGET`] (RFC 5322 2.2.3), so a continuation line always
-//! starts with that space, is never empty, and no line ends in a blank
-//! before its fold.
+//! The writer of one header field line: words joined by single spaces, folded
+//! before a space when the next word would pass [`LINE_TARGET`] (RFC 5322
+//! 2.2.3), so a continuation starts with that space, is never empty, and no
+//! line ends in a blank before its fold.
 //!
 //! [`LINE_TARGET`] is 76, not RFC 5322 2.1.1's 78, so that a line holding an
 //! encoded word also keeps RFC 2047 2's 76-character limit.
@@ -41,15 +40,15 @@ impl<'o> Folder<'o> {
         }
     }
 
-    /// The columns left on the current line for a word written after a
-    /// separating space.
+    /// The columns left on this line for a word after a separating space.
     pub(crate) fn room(&self) -> usize {
         LINE_TARGET.saturating_sub(self.column + 1)
     }
 
-    /// Writes a word after a separating space, folding before that space
-    /// when the word does not fit what is left of the line. Fails when the
-    /// word alone is longer than a line may ever be, or holds a line break.
+    /// Writes a word after a space, folding before that space if it overflows.
+    ///
+    /// Fails when the word alone is longer than a line may ever be, or holds a
+    /// line break.
     pub(crate) fn word(&mut self, word: &[u8]) -> Result<(), MimeBuildError> {
         if word.contains(&b'\r') || word.contains(&b'\n') {
             return Err(MimeBuildError::LineBreak);
@@ -77,8 +76,9 @@ impl<'o> Folder<'o> {
         Ok(())
     }
 
-    /// Appends bytes to the last word, with no space and no fold point
-    /// before them, as the comma ending a list item.
+    /// Appends bytes to the last word, with no space or fold point before.
+    ///
+    /// As the comma ending a list item.
     pub(crate) fn glue(&mut self, bytes: &[u8]) -> Result<(), MimeBuildError> {
         if bytes.contains(&b'\r') || bytes.contains(&b'\n') {
             return Err(MimeBuildError::LineBreak);
@@ -104,9 +104,10 @@ impl<'o> Folder<'o> {
         self.column = 0;
     }
 
-    /// Writes raw bytes, the value of a raw field, as given: every line
-    /// break written as the field's line ending, and one not followed by a
-    /// blank given a space so it cannot end the field early. Fails on a line
+    /// Writes the value of a raw field as given.
+    ///
+    /// Every line break becomes the field's line ending, and one no blank
+    /// follows gets a space so it cannot end the field early. Fails on a line
     /// longer than a line may ever be.
     pub(crate) fn raw(&mut self, value: &[u8]) -> Result<(), MimeBuildError> {
         let mut i = 0;

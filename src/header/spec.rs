@@ -11,9 +11,10 @@ use crate::header::MimeHeaderKind;
 #[cfg(feature = "parser")]
 use crate::value::MimeHeaderValue;
 
-/// The forms a field value can be read in: the RFC 8621 4.1.2 forms plus
-/// the MIME ones, spelled as RFC 8621 names them (`asText`, `asAddresses`)
-/// and, for the MIME ones, in the same style.
+/// The forms a field value is read in: RFC 8621 4.1.2's and the MIME ones.
+///
+/// Spelled as RFC 8621 names them (`asText`, `asAddresses`), the MIME ones in
+/// the same style.
 ///
 /// Refs: <https://datatracker.ietf.org/doc/html/rfc8621#section-4.1.2>
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -58,9 +59,10 @@ impl MimeHeaderForm {
         Self::TransferEncoding,
     ];
 
-    /// Reads a value standing alone, outside any message, in this form:
-    /// the bytes after a colon, up to the end of the field (a line break
-    /// not followed by a blank), anything after it ignored.
+    /// Reads a value standing alone, outside any message, in this form.
+    ///
+    /// The bytes after a colon, up to the end of the field (a line break not
+    /// followed by a blank), anything after it ignored.
     #[cfg(feature = "parser")]
     #[cfg_attr(docsrs, doc(cfg(feature = "parser")))]
     pub fn parse(self, bytes: &[u8]) -> MimeHeaderValue {

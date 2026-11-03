@@ -31,8 +31,9 @@ pub struct MimeRawParam<'v> {
 }
 
 impl<'v> MimeRawParam<'v> {
-    /// Splits a raw name (`name`, `name*`, `name*2`, `name*2*`) into its
-    /// base, section and encoding marker.
+    /// Splits a raw name into its base, section and encoding marker.
+    ///
+    /// A raw name is `name`, `name*`, `name*2` or `name*2*`.
     pub fn new(name: &'v [u8], value: Cow<'v, [u8]>) -> Self {
         let (name, encoded) = match name.strip_suffix(b"*") {
             Some(name) => (name, true),
@@ -63,13 +64,11 @@ impl<'v> MimeRawParam<'v> {
     }
 }
 
-/// Joins raw parameters into decoded ones, in the order their names first
-/// appear.
+/// Joins raw parameters into decoded ones, in the order names first appear.
 ///
-/// The sections of one name are joined in section order, each counted
-/// once; an RFC 2231 value wins over a plain one of the same name; a plain
-/// value written as RFC 2047 encoded words, which RFC 2047 5 forbids and
-/// real mailers send, is decoded too.
+/// The sections of one name join in section order, each counted once; an RFC
+/// 2231 value wins over a plain one of that name; a plain value written as RFC
+/// 2047 encoded words, which RFC 2047 5 forbids and mailers send, is decoded.
 ///
 /// Refs: <https://datatracker.ietf.org/doc/html/rfc2231#section-3>
 pub fn join(raw: Vec<MimeRawParam<'_>>) -> Vec<MimeParam> {
@@ -215,9 +214,10 @@ fn plain(value: &[u8]) -> String {
     String::from_utf8_lossy(value).into_owned()
 }
 
-/// Appends `value` to `out`, `%XX` sequences decoded and any other byte
-/// kept as written; a broken `%` is kept with `keep_broken`, dropped
-/// otherwise, as in a value RFC 2231 says is percent-encoded.
+/// Appends `value` to `out`, `%XX` decoded and any other byte kept.
+///
+/// A broken `%` is kept with `keep_broken`, else dropped, as in a value RFC
+/// 2231 says is percent-encoded.
 pub fn percent_decode(value: &[u8], out: &mut Vec<u8>, keep_broken: bool) {
     let mut i = 0;
 

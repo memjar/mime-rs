@@ -9,8 +9,7 @@ use core::fmt;
 
 use crate::build::MimeBuildError;
 
-/// A checked message identifier, `id-left "@" id-right`, without angle
-/// brackets.
+/// A checked message identifier `id-left "@" id-right`, no angle brackets.
 ///
 /// Refs: <https://datatracker.ietf.org/doc/html/rfc5322#section-3.6.4>
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -20,9 +19,10 @@ pub struct MimeMessageId {
 }
 
 impl MimeMessageId {
-    /// Joins a unique part and a domain, each checked: the unique part a
-    /// `dot-atom-text`, the domain a `dot-atom-text` or a `no-fold-literal`
-    /// (`[192.0.2.1]`).
+    /// Joins a unique part and a domain, each checked.
+    ///
+    /// The unique part must be a `dot-atom-text`, the domain a `dot-atom-text`
+    /// or a `no-fold-literal` (`[192.0.2.1]`).
     pub fn new(unique: &str, domain: &str) -> Result<Self, MimeBuildError> {
         let valid = is_dot_atom_text(unique) && (is_dot_atom_text(domain) || is_literal(domain));
 
@@ -36,8 +36,7 @@ impl MimeMessageId {
         })
     }
 
-    /// Reads an identifier written `left@right`, angle brackets optional,
-    /// checked as [`new`](Self::new) checks its halves.
+    /// Reads `left@right`, angle brackets optional, checked as [`Self::new`].
     pub fn parse(id: &str) -> Result<Self, MimeBuildError> {
         let id = id.trim();
         let id = id

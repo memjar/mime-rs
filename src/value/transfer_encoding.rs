@@ -21,8 +21,7 @@ pub enum MimeTransferEncoding {
     QuotedPrintable,
     /// `base64`.
     Base64,
-    /// A mechanism no RFC this crate covers defines, as written, decoded as
-    /// identity.
+    /// A mechanism no covered RFC defines, as written, decoded as identity.
     Unknown(String),
 }
 
@@ -58,8 +57,9 @@ impl MimeTransferEncoding {
         }
     }
 
-    /// Whether the body is written as is: `7bit`, `8bit` or `binary` (RFC
-    /// 2045 6.2), the only encodings a composite type may take.
+    /// Whether the body is written as is: `7bit`, `8bit` or `binary`.
+    ///
+    /// RFC 2045 6.2, and the only encodings a composite type may take.
     pub fn is_identity(&self) -> bool {
         matches!(self, Self::SevenBit | Self::EightBit | Self::Binary)
     }

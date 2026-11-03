@@ -47,27 +47,24 @@ impl MimeContentType {
         self.top.eq_ignore_ascii_case(top) && self.sub.eq_ignore_ascii_case(sub)
     }
 
-    /// Whether the top-level type is `top`, compared ASCII case-insensitively.
+    /// Whether the top-level type is `top`, ASCII case-insensitively.
     pub fn is_top(&self, top: &str) -> bool {
         self.top.eq_ignore_ascii_case(top)
     }
 
-    /// The value of the first parameter named `name`, compared ASCII
-    /// case-insensitively.
+    /// The value of the first `name` parameter, ASCII case-insensitively.
     pub fn param(&self, name: &str) -> Option<&str> {
         param(&self.params, name)
     }
 }
 
 impl MimeDisposition {
-    /// Whether the disposition type is `kind`, compared ASCII
-    /// case-insensitively.
+    /// Whether the disposition type is `kind`, ASCII case-insensitively.
     pub fn is(&self, kind: &str) -> bool {
         self.kind.eq_ignore_ascii_case(kind)
     }
 
-    /// The value of the first parameter named `name`, compared ASCII
-    /// case-insensitively.
+    /// The value of the first `name` parameter, ASCII case-insensitively.
     pub fn param(&self, name: &str) -> Option<&str> {
         param(&self.params, name)
     }

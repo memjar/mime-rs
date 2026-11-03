@@ -1,12 +1,12 @@
 //! # Structural edits
 //!
 //! Inserting, removing and moving the parts of a multipart, wrapping an
-//! entity into a new multipart and unwrapping a multipart of one part. Each
-//! changes the part list of the one multipart it names: an inserted part
-//! gets a delimiter line in the style of its siblings, a removed one leaves
-//! with its own, and the boundary is regenerated only when inserted content
-//! holds it, rewriting that multipart's boundary parameter and delimiter
-//! lines alone.
+//! entity into a new multipart and unwrapping a multipart of one part.
+//!
+//! Each edit changes the part list of the one multipart it names: an inserted
+//! part gets a delimiter line in its siblings' style, a removed one leaves with
+//! its own. The boundary is regenerated only when inserted content holds it,
+//! rewriting that multipart's boundary parameter and delimiter lines alone.
 
 use alloc::{borrow::Cow, boxed::Box, format, string::String, vec, vec::Vec};
 use core::mem;
@@ -33,8 +33,9 @@ use crate::{
 };
 
 impl<'a> MimeEntity<'a> {
-    /// Inserts `part` at `position` (at the end past it) in a multipart,
-    /// avoiding `taken`, the boundaries of the multiparts enclosing it.
+    /// Inserts `part` at `position` (at the end past it) in a multipart.
+    ///
+    /// The part avoids `taken`, the boundaries of the multiparts enclosing it.
     pub(crate) fn insert_part_within(
         &mut self,
         position: usize,
@@ -53,8 +54,6 @@ impl<'a> MimeEntity<'a> {
             return Err(MimeEditError::NotAMultipart);
         };
 
-        // NOTE: the part avoids this multipart's boundary and the enclosing
-        // ones.
         let mut around = taken.to_vec();
         around.push(boundary.clone());
 
@@ -109,8 +108,9 @@ impl<'a> MimeEntity<'a> {
         Ok(())
     }
 
-    /// Removes the part at `position` of a multipart, with its delimiter
-    /// line, and returns it.
+    /// Removes and returns the part at `position` of a multipart.
+    ///
+    /// Its delimiter line goes with it.
     pub(crate) fn remove_part(&mut self, position: usize) -> Result<MimeEntity<'a>, MimeEditError> {
         let eol = self.header.line_ending();
         let MimeBodyNode::Multipart(multipart) = &mut self.body else {
@@ -131,8 +131,7 @@ impl<'a> MimeEntity<'a> {
         Ok(part.entity)
     }
 
-    /// Moves the part at `from` of a multipart to `to`, with its delimiter
-    /// line.
+    /// Moves the part at `from` of a multipart to `to`, delimiter included.
     pub(crate) fn move_part(&mut self, from: usize, to: usize) -> Result<(), MimeEditError> {
         let eol = self.header.line_ending();
         let MimeBodyNode::Multipart(multipart) = &mut self.body else {
@@ -149,9 +148,10 @@ impl<'a> MimeEntity<'a> {
         Ok(())
     }
 
-    /// Wraps the entity into a new `multipart/<sub>`: its Content- fields
-    /// move, in order, to the new first part, whose body is the entity's
-    /// body unchanged, and its other fields stay on the entity.
+    /// Wraps the entity into a new `multipart/<sub>`.
+    ///
+    /// Its Content- fields move, in order, to the new first part, whose body is
+    /// the entity's body unchanged; its other fields stay on the entity.
     pub(crate) fn wrap_within(
         &mut self,
         sub: &str,
@@ -245,8 +245,10 @@ impl<'a> MimeEntity<'a> {
         Ok(())
     }
 
-    /// Replaces a multipart of one part by that part: the multipart's
-    /// Content- fields give way to the part's, its other fields stay.
+    /// Replaces a multipart of one part by that part.
+    ///
+    /// The multipart's Content- fields give way to the part's; its other fields
+    /// stay.
     pub(crate) fn unwrap(&mut self) -> Result<(), MimeEditError> {
         match &self.body {
             MimeBodyNode::Multipart(multipart) if multipart.parts.len() == 1 => self.unwrap_part(0),
@@ -257,8 +259,9 @@ impl<'a> MimeEntity<'a> {
         }
     }
 
-    /// Replaces a multipart by its part at `position`, as
-    /// [`unwrap`](Self::unwrap) does.
+    /// Replaces a multipart by its part at `position`.
+    ///
+    /// As [`unwrap`](Self::unwrap) does, whatever the part count.
     pub(crate) fn unwrap_part(&mut self, position: usize) -> Result<(), MimeEditError> {
         let digest = self.content_type().is("multipart", "digest");
         let MimeBodyNode::Multipart(multipart) = &mut self.body else {
@@ -271,8 +274,8 @@ impl<'a> MimeEntity<'a> {
 
         let mut part = multipart.parts.remove(position).entity;
 
-        // NOTE: the part read as the multipart it leaves defaulted it, which
-        // is stated, since where it lands may default otherwise.
+        // NOTE: the content type the multipart defaulted the part to is
+        // stated, since where the part lands may default otherwise.
         if part.header.get("content-type").is_none() {
             let opts = options(&MimeBuildOptions::default(), part.header.line_ending());
             let (top, sub) = if digest {
@@ -312,8 +315,9 @@ impl<'a> MimeEntity<'a> {
         Ok(())
     }
 
-    /// Replaces the boundary `old` by `new` in this multipart's delimiter
-    /// lines and in its Content-Type boundary parameter.
+    /// Replaces the boundary `old` by `new` in this multipart.
+    ///
+    /// Both its delimiter lines and its Content-Type boundary parameter change.
     pub(crate) fn rewrite_boundary(
         &mut self,
         old: &str,
@@ -376,9 +380,10 @@ impl<'a> MimeEntity<'a> {
     }
 }
 
-/// A delimiter line for a new part, in the style of its siblings: a later
-/// sibling's as written, else the line ending, the boundary and the line
-/// ending.
+/// A delimiter line for a new part, in the style of its siblings.
+///
+/// A later sibling's as written, else the line ending, the boundary and the
+/// line ending.
 fn sibling_delimiter(multipart: &MimeMultipart<'_>, boundary: &str, eol: &[u8]) -> Vec<u8> {
     let mut line = multipart
         .parts
@@ -390,9 +395,8 @@ fn sibling_delimiter(multipart: &MimeMultipart<'_>, boundary: &str, eol: &[u8]) 
             line
         });
 
-    // NOTE: a delimiter cut at the end of its multipart, an enclosing
-    // delimiter taking the line ending after it, ends no line of its own,
-    // where the part copied after it needs one.
+    // NOTE: a delimiter ending its multipart may end no line, an enclosing
+    // delimiter taking the line ending after it, and the new part needs one.
     if !line.ends_with(b"\n") {
         line.extend_from_slice(eol);
     }
@@ -400,8 +404,10 @@ fn sibling_delimiter(multipart: &MimeMultipart<'_>, boundary: &str, eol: &[u8]) 
     line
 }
 
-/// Gives every delimiter line past the first, and the close delimiter
-/// line, the line ending before it they need to start a line.
+/// Starts every delimiter line after content on a line of its own.
+///
+/// That is each one past the first, the first after a preamble, and the close
+/// delimiter line.
 pub(crate) fn separate(multipart: &mut MimeMultipart<'_>, eol: &[u8]) {
     let starts = |line: &[u8]| line.starts_with(b"\n") || line.starts_with(b"\r\n");
 
@@ -432,9 +438,8 @@ pub(crate) fn separate(multipart: &mut MimeMultipart<'_>, eol: &[u8]) {
         multipart.close = Cow::Owned(line);
     }
 
-    // NOTE: a part ending in a CR would lose it to an LF line ending
-    // before the delimiter after it, which would read as CRLF; a CRLF one
-    // keeps it.
+    // NOTE: a part ending in a CR would lose it to the LF before the next
+    // delimiter, reading as CRLF; a CRLF keeps it.
     for index in 0..multipart.parts.len() {
         let carriage = multipart.parts[index]
             .entity

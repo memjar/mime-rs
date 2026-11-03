@@ -6,9 +6,10 @@
 use alloc::vec::Vec;
 use core::ops::Range;
 
-/// Appends every field end of the header block starting the range: each
-/// `\n` whose next byte is neither SP nor HTAB, or that ends the range,
-/// stopping after the first one followed by an empty line.
+/// Appends every field end of the header block starting the range.
+///
+/// A field end is a `\n` whose next byte is neither SP nor HTAB, or that ends
+/// the range; the scan stops after the first one followed by an empty line.
 pub fn field_ends(input: &[u8], range: Range<usize>, out: &mut Vec<usize>) {
     let end = range.end.min(input.len());
 
@@ -31,8 +32,9 @@ pub fn field_ends(input: &[u8], range: Range<usize>, out: &mut Vec<usize>) {
     }
 }
 
-/// Appends every line start in the range beginning with `--`, the range
-/// start counting as a line start.
+/// Appends every line start in the range beginning with `--`.
+///
+/// The range start counts as a line start.
 pub fn dash_lines(input: &[u8], range: Range<usize>, out: &mut Vec<usize>) {
     let end = range.end.min(input.len());
 
@@ -45,8 +47,7 @@ pub fn dash_lines(input: &[u8], range: Range<usize>, out: &mut Vec<usize>) {
     }
 }
 
-/// Appends every non-overlapping occurrence of `needle` in the range,
-/// leftmost first.
+/// Appends each non-overlapping `needle` in the range, leftmost first.
 pub fn find(input: &[u8], range: Range<usize>, needle: &[u8], out: &mut Vec<usize>) {
     let end = range.end.min(input.len());
 
@@ -66,10 +67,11 @@ pub fn find(input: &[u8], range: Range<usize>, needle: &[u8], out: &mut Vec<usiz
     }
 }
 
-/// The end of the empty line starting at `at`, within `end`: a line holding
-/// nothing but blanks, carriage returns and form feeds before its line feed.
-/// Asked only where a line continues no field, so it never starts with a
-/// blank.
+/// The end of the empty line starting at `at`, within `end`.
+///
+/// Such a line holds nothing but blanks, carriage returns and form feeds
+/// before its line feed. Asked only where a line continues no field, so it
+/// never starts with a blank.
 // NOTE: wider than `\n` and `\r\n`, as mail-parser reads it: a message whose
 // CRLF line endings were converted again ends its empty line in `\r\r\n`.
 pub(crate) fn empty_line(input: &[u8], at: usize, end: usize) -> Option<usize> {

@@ -1,10 +1,11 @@
 //! # Content edits
 //!
-//! Replacing the content of a leaf: the content is encoded by the building
-//! rules, or under the transfer encoding the caller names when it can carry
-//! it, with the line ending the entity's block uses, and the entity's
-//! Content-Transfer-Encoding field is rewritten or added; no other leaf and
-//! no other field is touched.
+//! Replacing a leaf's content, touching no other leaf and no field but those
+//! stating how the content reads.
+//!
+//! The content is encoded under the transfer encoding the caller names when it
+//! can carry it, else by the building rules, with the line ending of the
+//! entity's block; Content-Transfer-Encoding is rewritten or added.
 
 use alloc::{borrow::Cow, string::String};
 
@@ -21,10 +22,11 @@ use crate::{
 };
 
 impl MimeEntity<'_> {
-    /// Replaces a leaf's content, `content` being in the leaf's own charset
-    /// for a text leaf, under `encoding` when it can carry it or the one
-    /// the building rules choose, and states the encoding in the entity's
-    /// Content-Transfer-Encoding field.
+    /// Replaces a leaf's content, stating its encoding in the header.
+    ///
+    /// `content` is in the leaf's own charset for a text leaf, written under
+    /// `encoding` when it can carry it, else the one the building rules choose,
+    /// which the Content-Transfer-Encoding field then states.
     pub(crate) fn replace_content(
         &mut self,
         content: &[u8],
@@ -68,9 +70,10 @@ impl MimeEntity<'_> {
         Ok(())
     }
 
-    /// Replaces a text leaf's content with `text`, written in the leaf's
-    /// declared charset when it can hold the text; otherwise in UTF-8, the
-    /// Content-Type field then rewritten to say `charset=utf-8`.
+    /// Replaces a text leaf's content with `text`.
+    ///
+    /// Written in the leaf's declared charset when it can hold the text, else
+    /// in UTF-8 with the Content-Type field rewritten to `charset=utf-8`.
     pub(crate) fn replace_text(
         &mut self,
         text: &str,

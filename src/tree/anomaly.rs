@@ -16,8 +16,7 @@ pub enum MimeAnomaly {
     MissingDelimiter,
     /// A multipart opened or closed by a delimiter found mid-line.
     FallbackDelimiter,
-    /// A multipart with no close delimiter, its last part running to the end
-    /// of its enclosing body.
+    /// A multipart with no close delimiter, its last part ending with the body.
     Unterminated,
     /// A container past the nesting bound, kept as a leaf.
     NestingLimit,

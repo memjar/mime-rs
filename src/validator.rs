@@ -5,18 +5,15 @@
 //! [`Mime::validate`] turns a message with no violation into a
 //! [`MimeValid`] proof, the only way to obtain one.
 //!
-//! Mail's RFCs speak in MUST and in SHOULD, and many real messages break a
-//! SHOULD harmlessly, so every problem carries a [`MimeSeverity`]: a
-//! violation (MUST, MUST NOT) withholds the proof, an advisory (SHOULD,
-//! SHOULD NOT, and the obsolete syntax RFC 5322 4 says not to generate) does
-//! not. A conformant message may carry extension fields and media types.
+//! Many real messages break a SHOULD harmlessly, so every problem carries a
+//! [`MimeSeverity`]: a violation (MUST, MUST NOT) withholds the proof, an
+//! advisory (SHOULD, SHOULD NOT, the obsolete syntax RFC 5322 4 says not to
+//! generate) does not. Extension fields and media types stay conformant.
 //!
-//! The model check reads what the model states: the message fields, the
-//! values of the known ones and the multipart structures. What only the
-//! wire shows (line lengths, line endings, transfer encodings as written,
-//! encoded words, boundaries, parser anomalies) is checked on the syntax
-//! tree by `MimeCst::check`, which also computes [`MimeTransport`], what
-//! the message needs of a transport.
+//! The model check reads the message fields, the values of the known ones and
+//! the multipart structures. What only the wire shows (line lengths and
+//! endings, transfer encodings as written, encoded words, boundaries, parser
+//! anomalies) is `MimeCst::check`'s, which also computes [`MimeTransport`].
 
 use alloc::{string::String, vec::Vec};
 use core::{error, fmt, ops::Deref};
@@ -30,8 +27,7 @@ use crate::{
 /// How much a problem weighs.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum MimeSeverity {
-    /// A SHOULD, a SHOULD NOT, or obsolete syntax: the message still
-    /// earns its proof.
+    /// A SHOULD, SHOULD NOT or obsolete syntax, which still earns the proof.
     Advisory,
     /// A MUST or a MUST NOT: the message does not earn its proof.
     Violation,
@@ -54,8 +50,9 @@ pub enum MimeValidateRule {
     Unreadable(MimeHeaderForm),
     /// A field written in the obsolete syntax.
     Obsolete(MimeHeaderForm),
-    /// A mailbox with no address, or an address that is not a local part,
-    /// an `@` and an unquoted domain.
+    /// A mailbox whose address is missing or not a plain addr-spec.
+    ///
+    /// An addr-spec here is a local part, an `@` and an unquoted domain.
     Address,
     /// A message identifier that is not `id-left "@" id-right`.
     MessageId,
@@ -69,35 +66,31 @@ pub enum MimeValidateRule {
     LfLineEndings,
     /// 8-bit bytes in a field that are not UTF-8.
     Raw8bit,
-    /// An encoded word longer than 75 characters, or where RFC 2047 5
-    /// forbids one: inside a quoted string, an address or a parameter.
+    /// An encoded word over 75 characters, or where RFC 2047 5 forbids one.
+    ///
+    /// That is inside a quoted string, an address or a parameter.
     EncodedWord,
     /// Content- fields at the top of a message with no MIME-Version.
     MimeVersion,
     /// A multipart with no boundary, or one RFC 2046 does not allow.
     Boundary,
-    /// A multipart or a nested message under an encoding other than
-    /// `7bit`, `8bit` or `binary`.
+    /// A multipart or nested message not under `7bit`, `8bit` or `binary`.
     CompositeEncoding,
     /// A `message/partial` or `message/external-body` not under `7bit`.
     PartialEncoding,
     /// Content declared `7bit` holding 8-bit bytes or long lines.
     NotSevenBit,
-    /// Content declared `8bit` holding a NUL, a stray CR or LF, or long
-    /// lines.
+    /// Content declared `8bit` holding a NUL, stray CR or LF, or long lines.
     NotEightBit,
-    /// Quoted-printable with an invalid sequence or a line over 76
-    /// characters.
+    /// Quoted-printable with a bad sequence or a line over 76 characters.
     QuotedPrintable,
     /// Base64 holding bytes outside its alphabet.
     Base64,
     /// A `multipart/related` with no `type`.
     RelatedType,
-    /// A `multipart/signed` without `protocol` and `micalg`, or without
-    /// exactly two parts.
+    /// A `multipart/signed` missing `protocol` or `micalg`, or not two parts.
     Signed,
-    /// A `multipart/encrypted` without `protocol`, or without exactly two
-    /// parts.
+    /// A `multipart/encrypted` missing `protocol`, or not two parts.
     Encrypted,
     /// A `multipart/report` with no `report-type`.
     ReportType,
@@ -224,14 +217,16 @@ impl fmt::Display for MimeValidateError {
 
 impl error::Error for MimeValidateError {}
 
-/// What a message needs of a transport, computed beside its problems and
-/// not one itself: whether a transport offers it is the caller's to know.
+/// What a message needs of a transport, computed beside its problems.
+///
+/// Not a problem itself: whether a transport offers it is the caller's to know.
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 pub struct MimeTransport {
     /// 8-bit bytes in bodies (RFC 6152 8BITMIME).
     pub eight_bit: bool,
-    /// Binary bodies: NUL, stray CR or LF, or unlimited lines (RFC 3030
-    /// BINARYMIME).
+    /// Binary bodies (RFC 3030 BINARYMIME).
+    ///
+    /// That is NUL, stray CR or LF, or unlimited lines.
     pub binary: bool,
     /// UTF-8 in fields (RFC 6531 SMTPUTF8).
     pub utf8_fields: bool,
@@ -280,13 +275,11 @@ impl MimeValidateOutput {
     }
 }
 
-/// A value that passed validation, with what the validation found short
-/// of a violation.
+/// A value that passed validation, with what it found short of a violation.
 ///
-/// The only way to mint one is a validation ([`Mime::validate`] or
-/// `MimeCst::validate`), so holding a `MimeValid<T>` is proof the check
-/// passed. It derefs for reads and yields the value with
-/// [`into_inner`](Self::into_inner).
+/// Only a validation ([`Mime::validate`] or `MimeCst::validate`) mints one, so
+/// holding a `MimeValid<T>` proves the check passed. It derefs for reads and
+/// yields the value with [`into_inner`](Self::into_inner).
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MimeValid<T> {
     inner: T,
@@ -318,9 +311,10 @@ impl<T> Deref for MimeValid<T> {
 }
 
 impl Mime {
-    /// Every problem the model states: the message fields, the values of
-    /// the known ones and the multipart structures. What only the wire
-    /// shows is `MimeCst::check`'s.
+    /// Every problem the model states.
+    ///
+    /// The message fields, the values of the known ones and the multipart
+    /// structures; what only the wire shows is `MimeCst::check`'s.
     pub fn check(&self) -> MimeValidateOutput {
         let mut output = MimeValidateOutput::default();
         let mut index = 0;
@@ -330,8 +324,9 @@ impl Mime {
         output
     }
 
-    /// The message as a proof of validity, or every problem it has when one
-    /// is a violation.
+    /// The message as a proof of validity.
+    ///
+    /// Fails with every problem it has when one is a violation.
     pub fn validate(self) -> Result<MimeValid<Mime>, MimeValidateOutput> {
         let output = self.check();
 
@@ -392,16 +387,19 @@ fn check_model(
     }
 }
 
-/// Whether an address reads as an RFC 5322 3.4.1 addr-spec: a local part,
-/// an `@`, and a domain that is no quoted string.
+/// Whether an address reads as an RFC 5322 3.4.1 addr-spec.
+///
+/// A local part, an `@`, and a domain that is no quoted string.
 fn is_addr_spec(address: &str) -> bool {
     address.rsplit_once('@').is_some_and(|(local, domain)| {
         !local.is_empty() && !domain.is_empty() && !domain.contains('"')
     })
 }
 
-/// The message field rules (RFC 5322 3.6) at the top of a message, as
-/// advisories for a nested one, and the value rules of every known field.
+/// The value rules of every known field, and the message field rules.
+///
+/// The latter (RFC 5322 3.6) apply at the top of a message, as advisories for
+/// a nested one.
 pub(crate) fn check_fields(
     entity: usize,
     fields: &[(&MimeHeaderName, &MimeHeaderValue)],
@@ -574,8 +572,7 @@ pub(crate) fn check_content_ids(
     }
 }
 
-/// The rules of the multipart structures RFC 1847, RFC 2387 and RFC 6522
-/// define.
+/// The rules of the multipart structures RFC 1847, 2387 and 6522 define.
 pub(crate) fn check_structure(
     entity: usize,
     content_type: &MimeContentType,

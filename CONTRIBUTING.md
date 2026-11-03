@@ -19,7 +19,7 @@ They are type-level keys naming a field, written only inside a turbofish (`entit
 
 ## Deviation: quoted-printable without a feature
 
-Quoted-printable is decoded and encoded in-house and always available, where vcard-rs and ical-rs put it behind a `quoted-printable` feature over the quoted_printable crate. That crate drops every byte outside printable ASCII and rewrites every line ending to CRLF, which loses data in mail, where quoted-printable bodies carry raw 8-bit bytes and LF line endings. Base64 and charsets stay behind their features.
+Quoted-printable is always available, in the core through quoted-printable-codec, where vcard-rs and ical-rs put it behind a `quoted-printable` feature. Base64 and charsets stay behind their features.
 
 ## Cairn
 
@@ -29,7 +29,9 @@ Non-trivial work starts with a change folder under cairn/changes, and nothing be
 
 ## Build
 
-mime-rs is not an I/O library: its one coroutine, the parse, yields byte searches rather than I/O, and it has no client or TLS layer. It is a no_std library (with alloc) whose core depends on simd-cpu, for the CPU token the application hands to the SIMD codecs, and quoted-printable-codec, every other dependency sitting behind a feature: `parser` takes memchr, `base64` base64-codec, `encoding` encoding_rs.
+mime-rs is not an I/O library: its one coroutine, the parse, yields byte searches rather than I/O, and it has no client or TLS layer.
+
+It is a no_std library (with alloc) whose core depends on simd-cpu, for the CPU token the application hands to the SIMD codecs, and quoted-printable-codec. Every other dependency sits behind a feature: `parser` takes memchr, `base64` base64-codec, `encoding` encoding_rs.
 
 Everything under the tree module is gated on `parser`, while the decoded model, the writer, the builder and the model validator are always available.
 
@@ -44,7 +46,9 @@ cargo test --all-features
 
 ## The fixture corpus
 
-Integration tests sweep a corpus of real and adversarial messages under tests/corpus, one directory per source project, each with its own ATTRIBUTION.md so provenance and licensing stay per project. Most fixtures carry mail-parser 1.0's frozen readings (`NAME.json` for the LF form, `NAME.crlf.json` for the CRLF form), which tests/structure.rs, tests/decoded.rs and tests/headers.rs compare against.
+Integration tests sweep a corpus of real and adversarial messages under tests/corpus, one directory per source project, each with its own ATTRIBUTION.md so provenance and licensing stay per project.
+
+Most fixtures carry mail-parser 1.0's frozen readings (`NAME.json` for the LF form, `NAME.crlf.json` for the CRLF form), which tests/structure.rs, tests/decoded.rs and tests/headers.rs compare against.
 
 1. drop the message into the matching tests/corpus/<project>/ directory (create a new one, with an ATTRIBUTION.md, for a new source);
 2. bump the fixture count for that project in tests/corpus.rs and wherever else the directory is listed, and the classification counts in tests/validate.rs;
@@ -54,7 +58,11 @@ When this crate reads a fixture differently from mail-parser on purpose, add a r
 
 ## The differential oracle
 
-tests/common/differential.rs reads one input through this crate and through mail-parser 1.0 and compares the part trees, the decoded content and decode problems, the decoded header values and the body lists. A difference made on purpose is let through by a named rule (`Rule`), whose doc comment states the reason; header values are compared only where the validator finds their syntax sound and their RFC grammar holds, since on malformed values both parsers recover by policy. The oracle runs over the vendored corpus (tests/differential.rs), over arbitrary bytes (the fuzz crate's `differential` target), and over the fetched corpora:
+tests/common/differential.rs reads one input through this crate and through mail-parser 1.0 and compares the part trees, the decoded content and decode problems, the decoded header values and the body lists.
+
+A difference made on purpose is let through by a named rule (`Rule`), whose doc comment states the reason. Header values are compared only where the validator finds their syntax sound and their RFC grammar holds, since on malformed values both parsers recover by policy.
+
+The oracle runs over the vendored corpus (tests/differential.rs), over arbitrary bytes (the fuzz crate's `differential` target), and over the fetched corpora:
 
 ```sh
 scripts/fetch-corpora.sh   # Enron, Apache lists, Stalwart, mail-auth, Hunny; about 3 GB

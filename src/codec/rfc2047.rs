@@ -3,20 +3,23 @@
 //! RFC 2047 encoded words (`=?charset?B?...?=` and `=?charset?Q?...?=`) in
 //! unstructured text and phrases.
 //!
-//! Decoding is liberal, as real mailers write: a word glued to the text
-//! around it still decodes, a fold inside a word is dropped, adjacent words
-//! of one charset are joined before transcoding so a character split across
-//! two words survives, and blanks between two words are dropped (RFC 2047
-//! 6.2). A word that does not parse, whose encoding is not built in, or
-//! whose charset cannot be transcoded stays as written.
+//! Decoding is liberal, as real mailers write: a word glued to the text around
+//! it still decodes, a fold inside a word is dropped, and adjacent words of one
+//! charset are joined before transcoding so a character split across two
+//! words survives.
+//!
+//! Blanks between two words are dropped (RFC 2047 6.2). A word that does not
+//! parse, whose encoding is not built in, or whose charset cannot be
+//! transcoded stays as written.
 
 use alloc::{borrow::Cow, string::String, vec::Vec};
 
 use crate::codec::{charset, quoted_printable};
 
-/// Decodes an unstructured value: encoded words decoded, every run of
-/// blanks holding a fold collapsed to one space, the blanks at its ends
-/// trimmed; the blanks an encoded word decodes to are text and stay.
+/// Decodes an unstructured value, encoded words decoded and ends trimmed.
+///
+/// Every run of blanks holding a fold collapses to one space; the blanks an
+/// encoded word decodes to are text and stay.
 ///
 /// Refs: <https://datatracker.ietf.org/doc/html/rfc2047#section-6.2>
 pub fn decode_text(raw: &[u8]) -> Cow<'_, str> {
@@ -73,8 +76,9 @@ pub fn decode_text(raw: &[u8]) -> Cow<'_, str> {
     Cow::Owned(out)
 }
 
-/// Decodes one encoded word standing alone (a parameter value written as an
-/// encoded word, or a phrase word), or `None` when it is not one.
+/// Decodes one encoded word standing alone, `None` when it is not one.
+///
+/// A parameter value written as an encoded word, or a phrase word.
 pub fn decode_word(raw: &[u8]) -> Option<String> {
     let mut finder = WordEnd::default();
     let word = parse_word(raw, 0, &mut finder)?;
@@ -85,8 +89,7 @@ pub fn decode_word(raw: &[u8]) -> Option<String> {
     Some(out)
 }
 
-/// The end of the encoded word starting at `start` in `raw`, when one does
-/// and decodes in this build.
+/// The end of the encoded word at `start`, if one there decodes in this build.
 pub fn word_end(raw: &[u8], start: usize) -> Option<usize> {
     let mut finder = WordEnd::default();
     parse_word(raw, start, &mut finder).map(|word| word.end)
@@ -113,8 +116,10 @@ struct Word<'r> {
     end: usize,
 }
 
-/// The position of the next `?=`, cached so that a value full of word
-/// starts with no end is read once, not once per start.
+/// The position of the next `?=`, cached across word starts.
+///
+/// A value full of word starts with no end is then read once, not once per
+/// start.
 #[derive(Default)]
 struct WordEnd {
     from: usize,
@@ -227,8 +232,7 @@ fn push_literal(bytes: &[u8], out: &mut String) {
     }
 }
 
-/// Drops every fold of an encoded word's text: the line break and every
-/// blank after it.
+/// Drops each fold (a line break and the blanks after it) of encoded word text.
 fn unfold_word(text: &[u8]) -> Cow<'_, [u8]> {
     if !text.contains(&b'\n') {
         return Cow::Borrowed(text);

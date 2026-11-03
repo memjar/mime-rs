@@ -3,11 +3,10 @@
 //! The RFC 2045 6.8 base64 transfer encoding and the RFC 2047 4.1 B
 //! encoding of encoded words, over the base64-codec crate.
 //!
-//! The crate decodes as mail needs: line breaks and blanks are skipped,
-//! any other byte outside the alphabet is skipped and reported, and so are
-//! data after padding and a lone trailing symbol. Bodies run the backend of
-//! the token their caller gives, encoded words the one the application
-//! installed.
+//! The crate decodes as mail needs: line breaks and blanks are skipped, any
+//! other byte outside the alphabet is skipped and reported, and so are data
+//! after padding and a lone trailing symbol. Bodies run under the caller's
+//! token, encoded words under the one the application installed.
 
 use alloc::vec::Vec;
 
@@ -17,8 +16,7 @@ use base64_codec::{
 };
 use simd_cpu::SimdCpu;
 
-/// Decodes a base64 body into `out` under `cpu`, returning whether the
-/// input was well-formed.
+/// Decodes a base64 body into `out` under `cpu`; `true` when well-formed.
 ///
 /// Line breaks and blanks are skipped silently; any other byte outside the
 /// alphabet is skipped and reported, and so are padding in the middle of
@@ -29,17 +27,18 @@ pub fn decode(cpu: SimdCpu, input: &[u8], out: &mut Vec<u8>) -> bool {
     codec(cpu, None).decode_vec(input, out)
 }
 
-/// Decodes the text of an RFC 2047 B encoded word into `out` under
-/// [`SimdCpu::current`], returning whether it was well-formed.
+/// Decodes RFC 2047 B encoded word text into `out`; `true` when well-formed.
+///
+/// Runs under [`SimdCpu::current`].
 ///
 /// Refs: <https://datatracker.ietf.org/doc/html/rfc2047#section-4.1>
 pub fn decode_b(input: &[u8], out: &mut Vec<u8>) -> bool {
     Base64Codec::default().decode_vec(input, out)
 }
 
-/// Encodes `input` as base64 into `out` under `cpu`, in lines of 76
-/// characters each ended by `eol` (CRLF unless it is a bare LF), the last
-/// line ended too.
+/// Encodes `input` as base64 into `out` under `cpu`, in 76-character lines.
+///
+/// Each line, the last too, is ended by `eol` (CRLF unless it is a bare LF).
 ///
 /// Refs: <https://datatracker.ietf.org/doc/html/rfc2045#section-6.8>
 pub fn encode(cpu: SimdCpu, input: &[u8], eol: &[u8], out: &mut Vec<u8>) {
@@ -51,8 +50,9 @@ pub fn encode(cpu: SimdCpu, input: &[u8], eol: &[u8], out: &mut Vec<u8>) {
     codec(cpu, Some(eol)).encode_vec(input, out);
 }
 
-/// Encodes `input` as the unwrapped text of an RFC 2047 B encoded word under
-/// [`SimdCpu::current`].
+/// Encodes `input` as the unwrapped text of an RFC 2047 B encoded word.
+///
+/// Runs under [`SimdCpu::current`].
 pub fn encode_b(input: &[u8], out: &mut Vec<u8>) {
     Base64Codec::default().encode_vec(input, out);
 }

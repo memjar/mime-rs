@@ -20,8 +20,9 @@ pub enum MimeBodyNode<'a> {
     Multipart(Box<MimeMultipart<'a>>),
     /// A nested `message/rfc822` or `message/global` entity.
     Message(Box<MimeEntity<'a>>),
-    /// A container body the parse left unsplit, past its structure depth,
-    /// until [`MimeEntity::expand`] splits it.
+    /// A container body the parse left unsplit, past its structure depth.
+    ///
+    /// It stays whole until [`MimeEntity::expand`] splits it.
     Unparsed(Box<MimeUnparsed<'a>>),
 }
 
@@ -30,8 +31,10 @@ pub enum MimeBodyNode<'a> {
 pub struct MimeUnparsed<'a> {
     /// The body, as written.
     pub bytes: Cow<'a, [u8]>,
-    /// Whether the entity is a part of a `multipart/digest`, so that it
-    /// reads as a message when it has no Content-Type (RFC 2046 5.1.5).
+    /// Whether the entity is a part of a `multipart/digest`.
+    ///
+    /// Such a part reads as a message when it has no Content-Type (RFC 2046
+    /// 5.1.5).
     pub digest: bool,
 }
 
@@ -44,8 +47,9 @@ pub struct MimeMultipart<'a> {
     pub preamble: Cow<'a, [u8]>,
     /// The parts, in source order.
     pub parts: Vec<MimePart<'a>>,
-    /// The close delimiter line with the line ending before and after it,
-    /// empty when the multipart was never closed.
+    /// The close delimiter line with the line ending before and after it.
+    ///
+    /// Empty when the multipart was never closed.
     pub close: Cow<'a, [u8]>,
     /// What follows the close delimiter line.
     pub epilogue: Cow<'a, [u8]>,
@@ -54,8 +58,9 @@ pub struct MimeMultipart<'a> {
 /// One part of a multipart.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MimePart<'a> {
-    /// The delimiter line opening the part, with the line ending before and
-    /// after it, its transport padding kept.
+    /// The delimiter line opening the part, with the line endings around it.
+    ///
+    /// Its transport padding is kept.
     pub delimiter: Cow<'a, [u8]>,
     /// The part itself.
     pub entity: MimeEntity<'a>,

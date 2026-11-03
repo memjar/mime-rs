@@ -23,11 +23,13 @@ pub struct Mime {
 /// A decoded body.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MimeBody {
-    /// The content of a `text` leaf, transfer-decoded and transcoded to
-    /// UTF-8, flowed text unwrapped.
+    /// The content of a `text` leaf, as UTF-8.
+    ///
+    /// Transfer-decoded, transcoded to UTF-8 and flowed text unwrapped.
     Text(String),
-    /// The content of any other leaf, or of a text leaf whose charset the
-    /// build cannot transcode, transfer-decoded where the build can.
+    /// The content of any other leaf, transfer-decoded where the build can.
+    ///
+    /// Also a text leaf whose charset the build cannot transcode.
     Binary(Vec<u8>),
     /// The parts of a multipart, in order.
     Multipart(Vec<Mime>),
@@ -50,8 +52,7 @@ impl Mime {
             .map(|header| &header.value)
     }
 
-    /// The values of every field named `name`, compared ASCII
-    /// case-insensitively.
+    /// The values of every field named `name`, ASCII case-insensitively.
     pub fn headers_named<'s>(&'s self, name: &'s str) -> impl Iterator<Item = &'s MimeHeaderValue> {
         self.headers
             .iter()
@@ -59,8 +60,7 @@ impl Mime {
             .map(|header| &header.value)
     }
 
-    /// The content type: the last Content-Type field, or `text/plain` with
-    /// none (RFC 2045 5.2).
+    /// The last Content-Type field, or `text/plain` with none (RFC 2045 5.2).
     pub fn content_type(&self) -> MimeContentType {
         self.headers
             .iter()

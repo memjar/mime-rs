@@ -1,10 +1,9 @@
 //! # Building
 //!
-//! Writing a decoded [`Mime`] as canonical bytes: every field encoded and
-//! folded by [`field`] and [`fold`], every body given its transfer encoding,
-//! its charset and its boundary by [`entity`]. The output depends on the
-//! model and the [`MimeBuildOptions`] alone: no clock, no randomness, no
-//! hostname, so the same model always builds the same bytes.
+//! Writing a decoded [`Mime`] as canonical bytes: fields encoded and folded
+//! by [`field`] and [`fold`], bodies given transfer encoding, charset and
+//! boundary by [`entity`]. Only the model and the [`MimeBuildOptions`] shape
+//! the output (no clock, randomness or hostname): same model, same bytes.
 //!
 //! Writing needs no parser; [`MimeBuilder`](crate::builder::MimeBuilder)
 //! composes a model to write, and the syntax tree reads the bytes back.
@@ -52,19 +51,21 @@ pub struct MimeBuildOptions {
     pub allow_8bit: bool,
     /// Whether any leaf may be written `binary` (RFC 3030 BINARYMIME).
     pub allow_binary: bool,
-    /// Whether header fields may carry UTF-8 instead of encoded words (RFC
-    /// 6532, SMTPUTF8 transports).
+    /// Whether header fields may carry UTF-8 instead of encoded words.
+    ///
+    /// RFC 6532, for SMTPUTF8 transports.
     pub allow_utf8_headers: bool,
-    /// Whether `text/plain` without a `format` parameter is written as
-    /// RFC 3676 flowed text.
+    /// Whether `text/plain` without `format` is written flowed (RFC 3676).
     pub flowed: bool,
-    /// Whether a part whose Content-Disposition carries a non-ASCII
-    /// `filename` also gets an encoded `name` parameter on its
-    /// Content-Type, for readers that know neither RFC 2231 nor RFC 2183.
+    /// Whether a non-ASCII disposition `filename` is also given as `name`.
+    ///
+    /// The encoded `name` parameter goes on the Content-Type, for readers that
+    /// know neither RFC 2231 nor RFC 2183.
     pub legacy_name: bool,
-    /// The CPU features bodies are encoded under, or none, the default, for
-    /// [`SimdCpu::current`]: the token the application installed, or the
-    /// build target's baseline.
+    /// The CPU features bodies are encoded under, [`SimdCpu::current`] if none.
+    ///
+    /// None is the default; the current token is the one the application
+    /// installed, or the build target's baseline.
     pub cpu: Option<SimdCpu>,
 }
 
@@ -80,24 +81,24 @@ pub enum MimeBuildError {
     },
     /// A second instance of a field RFC 5322 3.6 allows once.
     Repeated(MimeHeaderKind),
-    /// A field the builder writes itself (Content-Type,
-    /// Content-Transfer-Encoding, MIME-Version).
+    /// A field the builder writes itself.
+    ///
+    /// Content-Type, Content-Transfer-Encoding and MIME-Version.
     Reserved(MimeHeaderKind),
-    /// A message identifier that is not RFC 5322 3.6.4 `id-left "@"
-    /// id-right`.
+    /// A message identifier not RFC 5322 3.6.4 `id-left "@" id-right`.
     MessageId(String),
     /// A field name holding a byte RFC 5322 2.2 does not allow, or none.
     FieldName(String),
-    /// A raw value holding a line break no blank follows, which would end
-    /// its field early.
+    /// A raw value with a line break no blank follows, ending its field early.
     RawValue(String),
-    /// A token longer than a line may ever be (RFC 5322 2.1.1), which no
-    /// fold can split.
+    /// A token no fold can split, longer than a line may be (RFC 5322 2.1.1).
     LineTooLong,
     /// A token holding a line break, which would end its field early.
     LineBreak,
-    /// A multipart body under a content type that is not `multipart`, or a
-    /// nested message under one that is not `message`.
+    /// A body that does not match its content type.
+    ///
+    /// A multipart body under a type that is not `multipart`, or a nested
+    /// message under one that is not `message`.
     Structure,
     /// An inline resource with no Content-ID to be referenced by.
     InlineWithoutId,

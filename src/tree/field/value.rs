@@ -12,8 +12,9 @@ use crate::{
     value::{MimeHeaderValue, transfer_encoding::MimeTransferEncoding},
 };
 
-/// Reads a raw field value (the bytes after the colon, folds included) in
-/// `form`. A value that does not fit its form reads as
+/// Reads a raw field value, the bytes after the colon, folds included.
+///
+/// The value is read in `form`; one that does not fit reads as
 /// [`MimeHeaderValue::Raw`].
 pub fn read(form: MimeHeaderForm, raw: &[u8]) -> MimeHeaderValue {
     match form {
@@ -42,15 +43,17 @@ pub fn read(form: MimeHeaderForm, raw: &[u8]) -> MimeHeaderValue {
     }
 }
 
-/// Reads a value standing alone, outside any message: the bytes after a
-/// colon, up to the end of the field (a line break not followed by a
-/// blank), anything after it ignored.
+/// Reads a value standing alone, outside any message.
+///
+/// The value is the bytes after a colon, up to the end of the field (a line
+/// break not followed by a blank); anything after it is ignored.
 pub fn parse(form: MimeHeaderForm, bytes: &[u8]) -> MimeHeaderValue {
     read(form, &bytes[..field_end(bytes)])
 }
 
-/// The length of the field value at the start of `bytes`: up to its first
-/// line break not followed by a blank, the line break excluded.
+/// The length of the field value at the start of `bytes`.
+///
+/// It runs up to its first line break not followed by a blank, excluded.
 pub fn field_end(bytes: &[u8]) -> usize {
     let mut i = 0;
 
@@ -71,8 +74,7 @@ pub fn field_end(bytes: &[u8]) -> usize {
     bytes.len()
 }
 
-/// Reads a transfer encoding mechanism, comments around it skipped, as in
-/// `8BIT (raw)`.
+/// Reads a transfer encoding, comments around it skipped, as in `8BIT (raw)`.
 ///
 /// Refs: <https://datatracker.ietf.org/doc/html/rfc2045#section-6.1>
 pub fn transfer_encoding(raw: &[u8]) -> MimeTransferEncoding {

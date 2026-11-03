@@ -102,17 +102,18 @@ pub fn parse_addresses(value: &[u8]) -> MimeAddressList {
     MimeAddressList { items }
 }
 
-/// Reads an address list with every group flattened into its mailboxes:
-/// the RFC 8621 4.1.2.3 addresses form.
+/// Reads an address list with every group flattened into its mailboxes.
+///
+/// The RFC 8621 4.1.2.3 addresses form.
 pub fn parse_mailboxes(value: &[u8]) -> MimeAddressList {
     parse_addresses(value).mailboxes().cloned().collect()
 }
 
-/// The byte ranges of the items of an address list as written, mailboxes
-/// and groups, split at the commas outside quoted strings, comments, angle
-/// addresses and groups, the blanks and folds around each included and the
-/// commas excluded; an empty item between two commas is kept as an empty
-/// range, so ranges and commas alternate.
+/// The byte ranges of an address list's items (mailboxes and groups).
+///
+/// Split at the commas outside quoted strings, comments, angle addresses and
+/// groups, blanks and folds included, commas excluded. An empty item between
+/// two commas is an empty range, so ranges and commas alternate.
 pub(crate) fn item_spans(value: &[u8]) -> Vec<Range<usize>> {
     let mut spans = Vec::new();
     let mut start = 0;
@@ -188,9 +189,10 @@ impl Pending {
         name(phrase, &self.comments)
     }
 
-    /// Splits bare words holding several addresses with no comma between
-    /// them, as `a@b.c\r\n\tjane@y.z`, one mailbox per address handed to
-    /// `push`; the comments stay with the first.
+    /// Splits bare words holding several addresses with no comma between.
+    ///
+    /// As `a@b.c\r\n\tjane@y.z`: one mailbox per address is handed to `push`,
+    /// the comments staying with the first.
     fn split(self, mut push: impl FnMut(Self)) {
         let is_at = |word: &Word| matches!(word, Word::Atom(atom) if atom.contains(&b'@'));
 
@@ -305,8 +307,9 @@ fn finish(mailbox: &mut Pending, group: &mut Option<MimeGroup>, items: &mut Vec<
     });
 }
 
-/// The phrase words joined by single spaces, encoded words decoded, even
-/// inside quoted strings as real mailers write them.
+/// The phrase words joined by single spaces, encoded words decoded.
+///
+/// Even inside quoted strings, as real mailers write them.
 fn phrase(words: &[Word]) -> String {
     let mut raw = Vec::new();
 
@@ -344,8 +347,9 @@ fn name(phrase: String, comments: &[String]) -> Option<String> {
     }
 }
 
-/// Reads an angle address after its `<`: blanks and comments dropped (the
-/// comments kept for the name), an obsolete route dropped.
+/// Reads an angle address after its `<`, an obsolete route dropped.
+///
+/// Blanks and comments are dropped, the comments kept for the name.
 fn angle(lex: &mut Lexer<'_>, comments: &mut Vec<String>) -> String {
     let mut address = Vec::new();
 
@@ -368,8 +372,6 @@ fn angle(lex: &mut Lexer<'_>, comments: &mut Vec<String>) -> String {
                 lex.bump();
             }
             _ => {
-                // NOTE: the bytes up to the next one handled above are
-                // copied at once.
                 address.extend_from_slice(lex.until(|byte| {
                     matches!(byte, b'>' | b'(' | b'"' | b' ' | b'\t' | b'\r' | b'\n')
                 }));
@@ -388,8 +390,9 @@ fn angle(lex: &mut Lexer<'_>, comments: &mut Vec<String>) -> String {
         .unwrap_or_else(|error| String::from_utf8_lossy(error.as_bytes()).into_owned())
 }
 
-/// Whether two adjacent words of a bare address belong together: one ends
-/// or the next starts with a dot or an `@`.
+/// Whether two adjacent words of a bare address belong together.
+///
+/// They do when one ends or the next starts with a dot or an `@`.
 fn joins(before: &Word, after: &Word) -> bool {
     let edge = |word: &Word, last: bool| match word {
         Word::Atom(atom) => if last { atom.last() } else { atom.first() }
@@ -400,12 +403,12 @@ fn joins(before: &Word, after: &Word) -> bool {
     edge(before, true) || edge(after, false)
 }
 
-/// Reads an atom, a quoted pair outside quotes (`\(`) taken literally, as
-/// the RFC 5322 4.4 obsolete phrase allows.
+/// Reads an atom, a quoted pair outside quotes (`\(`) taken literally.
+///
+/// The RFC 5322 4.4 obsolete phrase allows it.
 fn atom(lex: &mut Lexer<'_>) -> Vec<u8> {
     let mut word = Vec::new();
 
-    // NOTE: the bytes up to a quoted pair are copied at once.
     loop {
         word.extend_from_slice(lex.until(|byte| {
             matches!(
@@ -435,8 +438,7 @@ fn atom(lex: &mut Lexer<'_>) -> Vec<u8> {
     }
 }
 
-/// A comment's text: quoted pairs unescaped, folds collapsed, encoded words
-/// decoded.
+/// A comment's text: escapes undone, folds collapsed, encoded words decoded.
 fn comment_text(raw: &[u8]) -> String {
     let mut unescaped = Vec::with_capacity(raw.len());
     let mut i = 0;

@@ -166,9 +166,10 @@ fn month_of(token: &[u8]) -> Option<u8> {
         .map(|index| index as u8 + 1)
 }
 
-/// The offset of an obsolete zone name (RFC 5322 4.3): the US zones by
-/// their offsets, UT and GMT as UTC, and a military letter as `-0000`,
-/// since its sign was used both ways.
+/// The offset of an obsolete zone name (RFC 5322 4.3).
+///
+/// The US zones by their offsets, UT and GMT as UTC, and a military letter as
+/// `-0000`, since its sign was used both ways.
 fn zone(token: &[u8]) -> Option<i16> {
     const ZONES: [(&[u8], i16); 12] = [
         (b"UT", 0),

@@ -22,8 +22,9 @@ use crate::{
 pub struct MimeHeaderBlock<'a> {
     /// The fields and opaque lines, in source order.
     pub items: Vec<MimeHeaderItem<'a>>,
-    /// The empty line ending the block (`\r\n` or `\n`), empty when the
-    /// block ran into the end of its entity.
+    /// The empty line ending the block, `\r\n` or `\n`.
+    ///
+    /// Empty when the block ran into the end of its entity.
     pub end: Cow<'a, [u8]>,
 }
 
@@ -32,14 +33,17 @@ pub struct MimeHeaderBlock<'a> {
 pub enum MimeHeaderItem<'a> {
     /// A header field.
     Field(MimeHeaderField<'a>),
-    /// A line that is neither a field nor a continuation, its line ending
-    /// included, kept so the block still round-trips.
+    /// A line that is neither a field nor a continuation.
+    ///
+    /// Kept with its line ending so the block still round-trips.
     Opaque(Cow<'a, [u8]>),
 }
 
-/// A header field as written: one leaf holding the whole line (name, colon,
-/// raw value with its folds, line ending), cut by three offsets, so a parsed
-/// field costs one borrowed slice and an edit owns exactly its own line.
+/// A header field as written, one leaf cut by three offsets.
+///
+/// The leaf holds the whole line (name, colon, raw value with its folds, line
+/// ending), so a parsed field costs one borrowed slice and an edit owns
+/// exactly its own line.
 ///
 /// Refs: <https://datatracker.ietf.org/doc/html/rfc5322#section-2.2>
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -112,8 +116,9 @@ impl MimeHeaderField<'_> {
         alloc::string::String::from_utf8_lossy(self.name())
     }
 
-    /// The raw value with its folds removed (RFC 5322 2.2.3): every line
-    /// break followed by a blank is dropped, the blank kept.
+    /// The raw value with its folds removed (RFC 5322 2.2.3).
+    ///
+    /// Every line break followed by a blank is dropped, the blank kept.
     pub fn unfolded(&self) -> Cow<'_, [u8]> {
         unfold(self.value())
     }
@@ -164,8 +169,7 @@ impl<'a> MimeHeaderBlock<'a> {
 }
 
 impl MimeHeaderField<'_> {
-    /// Reads the value in the default form of the field's name: its spec's
-    /// for a known field, raw for any other.
+    /// Reads the value in its name's default form, raw for an unknown field.
     pub fn read(&self) -> MimeHeaderValue {
         let form = core::str::from_utf8(self.name())
             .ok()
@@ -192,9 +196,9 @@ impl MimeHeaderField<'_> {
 }
 
 impl<'a> MimeHeaderField<'a> {
-    /// Builds a field from its whole line and where its name, its colon
-    /// and its value end in it; `None` when the offsets do not cut the line
-    /// in order.
+    /// Builds a field from its line and where its name, colon and value end.
+    ///
+    /// `None` when the offsets do not cut the line in order.
     pub fn new(
         line: Cow<'a, [u8]>,
         name_end: usize,
@@ -241,8 +245,7 @@ impl<'a> MimeHeaderField<'a> {
         &self.line
     }
 
-    /// Whether an edit wrote the field, rather than the parse borrowing it
-    /// from the input.
+    /// Whether an edit wrote the field, rather than the parse borrowing it.
     pub fn is_owned(&self) -> bool {
         matches!(self.line, Cow::Owned(_))
     }
@@ -252,20 +255,19 @@ impl<'a> MimeHeaderField<'a> {
         &self.line[..self.name_end as usize]
     }
 
-    /// The blanks before the colon (the RFC 5322 4.5 obsolete syntax), then
-    /// the colon.
+    /// The colon, after any blanks before it (RFC 5322 4.5 obsolete syntax).
     pub fn colon(&self) -> &[u8] {
         &self.line[self.name_end as usize..self.colon_end as usize]
     }
 
-    /// The raw value after the colon, its folds and leading blanks kept,
-    /// without the final line ending.
+    /// The raw value after the colon, its folds and leading blanks kept.
+    ///
+    /// The final line ending is excluded.
     pub fn value(&self) -> &[u8] {
         &self.line[self.colon_end as usize..self.value_end as usize]
     }
 
-    /// [`value`](Self::value) with the input's lifetime, while the field
-    /// still borrows its line from the input.
+    /// The value with the input's lifetime, while the line borrows the input.
     pub(crate) fn borrowed_value(&self) -> Option<&'a [u8]> {
         match self.line {
             Cow::Borrowed(line) => line.get(self.colon_end as usize..self.value_end as usize),

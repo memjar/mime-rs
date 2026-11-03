@@ -1,11 +1,9 @@
 //! # Field writers
 //!
-//! The writing side of every header value form, each producing what the
-//! matching reader of `tree::field` reads back as the value
-//! written: unstructured text and phrases with RFC 2047 encoded words
-//! where RFC 2047 5 allows them, quoted strings for phrases holding
-//! specials, RFC 2231 for parameter values that are not plain ASCII or do
-//! not fit a line, everything folded as [`fold`](crate::build::fold) folds.
+//! The writing side of every header value form, each read back as written by
+//! its `tree::field` reader, folded by [`fold`](super::fold): encoded words
+//! in text and phrases where RFC 2047 5 allows them, quoted phrases when
+//! they hold specials, RFC 2231 for values not plain ASCII or over a line.
 
 use alloc::{format, string::String, vec::Vec};
 use core::mem;
@@ -29,8 +27,7 @@ const WORD_MAX: usize = 75;
 /// The `=?utf-8?X?` and `?=` around an encoded word's text.
 const WORD_OVERHEAD: usize = 12;
 
-/// The longest parameter section written on one line before RFC 2231
-/// continuations take over.
+/// The longest parameter section on one line before RFC 2231 continuations.
 const SECTION_MAX: usize = 60;
 
 /// Writes a field value in the form its arm states.
@@ -117,9 +114,10 @@ pub(crate) fn write(
     Ok(())
 }
 
-/// Writes unstructured text (RFC 5322 3.2.5): words split at single
-/// spaces, the runs of words that need it as encoded words, the spaces
-/// inside a run encoded with it, the ends trimmed.
+/// Writes unstructured text (RFC 5322 3.2.5), its ends trimmed.
+///
+/// Words split at single spaces; each run of words that needs it is written as
+/// encoded words, the spaces inside the run encoded with it.
 ///
 /// Refs: <https://datatracker.ietf.org/doc/html/rfc2047#section-5>
 pub(crate) fn write_text(
@@ -159,10 +157,11 @@ pub(crate) fn write_text(
     Ok(())
 }
 
-/// Writes a phrase (RFC 5322 3.2.5): atoms when every word is one, else a
-/// quoted string when the phrase is printable ASCII (or UTF-8, when UTF-8
-/// headers are allowed), else encoded words. With `quote`, a phrase is
-/// never written as bare atoms, so it cannot be read as an address.
+/// Writes a phrase (RFC 5322 3.2.5) as atoms, a quoted string or encoded words.
+///
+/// Atoms when every word is one, else a quoted string when printable ASCII
+/// (or UTF-8 when UTF-8 headers are allowed), else encoded words. With
+/// `quote`, never bare atoms, so it cannot be read as an address.
 pub(crate) fn write_phrase(
     folder: &mut Folder<'_>,
     phrase: &str,
@@ -197,8 +196,9 @@ pub(crate) fn write_phrase(
     write_encoded(folder, phrase)
 }
 
-/// Writes an address list: mailboxes and groups separated by commas, a
-/// group's members between its colon and its semicolon.
+/// Writes an address list: mailboxes and groups separated by commas.
+///
+/// A group's members go between its colon and its semicolon.
 ///
 /// Refs: <https://datatracker.ietf.org/doc/html/rfc5322#section-3.4>
 pub(crate) fn write_addresses(
@@ -264,8 +264,7 @@ fn write_mailbox(
     }
 }
 
-/// Writes the parameters of a content type or disposition, each after a
-/// `;`.
+/// Writes the parameters of a content type or disposition, each after a `;`.
 ///
 /// Refs: <https://datatracker.ietf.org/doc/html/rfc2231>
 pub(crate) fn write_params(
@@ -345,9 +344,9 @@ fn write_param(
     Ok(())
 }
 
-/// Cuts a parameter value into sections of at most `budget`
-/// characters once written, whole characters each, percent-encoded with
-/// `encode`.
+/// Cuts a parameter value into sections of at most `budget` written chars.
+///
+/// Whole characters each, percent-encoded with `encode`.
 fn sections(value: &str, encode: bool, budget: usize) -> Vec<String> {
     let mut sections = Vec::new();
     let mut section = String::new();
@@ -389,10 +388,10 @@ fn sections(value: &str, encode: bool, budget: usize) -> Vec<String> {
     sections
 }
 
-/// Writes text as RFC 2047 encoded words in UTF-8, B or Q whichever is
-/// shorter, each word at most 75 characters and holding whole characters,
-/// so each decodes on its own, the first sized to what is left of the
-/// line.
+/// Writes text as RFC 2047 UTF-8 encoded words, B or Q whichever is shorter.
+///
+/// Each word is at most 75 characters and holds whole characters, so it
+/// decodes on its own; the first is sized to what is left of the line.
 ///
 /// Refs: <https://datatracker.ietf.org/doc/html/rfc2047#section-2>
 pub(crate) fn write_encoded(folder: &mut Folder<'_>, text: &str) -> Result<(), MimeBuildError> {
@@ -419,10 +418,11 @@ pub(crate) fn write_encoded(folder: &mut Folder<'_>, text: &str) -> Result<(), M
     Ok(())
 }
 
-/// Writes the legacy `name` parameter of a content type: `filename` as
-/// encoded words inside a quoted string, which RFC 2047 5 forbids and
-/// readers knowing neither RFC 2231 nor RFC 2183 expect; with UTF-8
-/// headers, as any other parameter.
+/// Writes the legacy `name` parameter of a content type from `filename`.
+///
+/// Encoded words inside a quoted string, which RFC 2047 5 forbids and readers
+/// knowing neither RFC 2231 nor RFC 2183 expect; with UTF-8 headers, written
+/// as any other parameter.
 pub(crate) fn write_legacy_name(
     folder: &mut Folder<'_>,
     filename: &str,
@@ -454,8 +454,9 @@ pub(crate) fn write_legacy_name(
     folder.word(&word)
 }
 
-/// The end of the longest prefix of `text`, whole characters and at least
-/// one, whose encoding fits `budget`.
+/// The end of the longest prefix of `text` whose encoding fits `budget`.
+///
+/// Whole characters, and at least one.
 fn chunk_end(encoding: WordEncoding, text: &str, budget: usize) -> usize {
     let mut end = 0;
 
@@ -529,8 +530,9 @@ impl WordEncoding {
     }
 }
 
-/// The byte ranges of the words of `text`, split at single spaces: a run
-/// of several blanks stays inside a word, since unfolding it back would
+/// The byte ranges of the words of `text`, split at single spaces.
+///
+/// A run of several blanks stays inside a word, since unfolding it back would
 /// shrink it.
 fn words(text: &str) -> Vec<(usize, usize)> {
     let bytes = text.as_bytes();
@@ -556,9 +558,10 @@ fn words(text: &str) -> Vec<(usize, usize)> {
     words
 }
 
-/// Whether a word of unstructured text must be written as an encoded
-/// word: it holds a control character, a non-ASCII one without UTF-8
-/// headers, or something a reader would take for an encoded word.
+/// Whether a word of unstructured text must be written as an encoded word.
+///
+/// It holds a control character, a non-ASCII one without UTF-8 headers, or
+/// something a reader would take for an encoded word.
 fn needs_encoding(word: &str, utf8: bool) -> bool {
     word.contains("=?")
         || word
@@ -583,8 +586,9 @@ fn quoted(text: &str) -> Vec<u8> {
     out
 }
 
-/// An address reduced to what an angle address reads back unchanged:
-/// brackets, parentheses, backslashes, blanks and controls dropped outside
+/// An address reduced to what an angle address reads back unchanged.
+///
+/// Brackets, parentheses, backslashes, blanks and controls dropped outside
 /// quoted strings, a quoted string kept only when it closes, without its
 /// escapes, and an obsolete route dropped as the reader drops it.
 fn angle_safe(address: &str) -> String {
@@ -637,9 +641,9 @@ fn angle_safe(address: &str) -> String {
     out
 }
 
-/// Whether an address can stand bare: a `dot-atom` local part and domain
-/// around one `@`, so that no reader takes part of it for a separator or a
-/// display name.
+/// Whether an address can stand bare, a `dot-atom` on each side of one `@`.
+///
+/// So no reader takes part of it for a separator or a display name.
 fn is_plain_address(address: &str) -> bool {
     let dot_atom = |part: &str| {
         !part.is_empty()
@@ -663,9 +667,9 @@ fn is_token(byte: u8) -> bool {
     matches!(byte, 33..=126) && !b"()<>@,;:\\\"/[]?=".contains(&byte)
 }
 
-/// Whether a parameter name can be written: RFC 2231 `attribute-char`s,
-/// at least one; a parameter named otherwise, or with an empty value,
-/// would not read back.
+/// Whether a parameter name is one or more RFC 2231 `attribute-char`s.
+///
+/// A parameter named otherwise, or with an empty value, would not read back.
 fn is_param_name(name: &str) -> bool {
     !name.is_empty() && name.bytes().all(is_attribute_char)
 }

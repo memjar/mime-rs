@@ -6,11 +6,11 @@
 
 use alloc::{string::String, vec::Vec};
 
-/// Unwraps flowed text: a line ending in a space continues into the next
-/// line of the same quote depth, the space removed too with `delsp`; one
-/// leading space of a space-stuffed line is removed; the signature
-/// separator `-- ` never flows. Quoted paragraphs come back prefixed with
-/// their `>` marks and a space.
+/// Unwraps flowed text, joining soft-broken lines into paragraphs.
+///
+/// A line ending in a space continues into the next of the same quote depth,
+/// the space dropped with `delsp`; stuffing is undone, `-- ` never flows, and
+/// quoted paragraphs come back as their `>` marks, a space, then the text.
 ///
 /// Refs: <https://datatracker.ietf.org/doc/html/rfc3676#section-4.2>
 pub fn decode(text: &str, delsp: bool) -> String {
@@ -59,11 +59,11 @@ pub fn decode(text: &str, delsp: bool) -> String {
     out
 }
 
-/// Wraps text as flowed, `DelSp=no`: every line longer than `width` breaks
-/// after a space, which stays to mark the soft break; trailing spaces of a
-/// hard line are removed, since one would read as a soft break, and so are
-/// trailing CRs under an LF `eol`, which would not read back as content; a
-/// line starting with a space, `>` or `From ` is space-stuffed.
+/// Wraps text as flowed, `DelSp=no`, lines over `width` broken after a space.
+///
+/// The space stays as the soft break mark. A hard line loses trailing spaces,
+/// which would read as soft breaks, and under an LF `eol` trailing CRs, which
+/// would not read back; lines starting with ` `, `>` or `From ` are stuffed.
 ///
 /// Refs: <https://datatracker.ietf.org/doc/html/rfc3676#section-4.1>
 pub fn encode(text: &str, width: usize, eol: &str) -> String {
@@ -122,9 +122,10 @@ pub fn encode(text: &str, width: usize, eol: &str) -> String {
     out
 }
 
-/// The lines of text, each without its line ending (an LF, with the CR
-/// before it), and whether the text ends with a line ending; a CR not
-/// before an LF is content.
+/// The lines of text without their line endings, and whether it ends with one.
+///
+/// A line ending is an LF, with the CR before it; a CR not before an LF is
+/// content.
 fn lines(text: &str) -> (Vec<&str>, bool) {
     let mut lines: Vec<&str> = text.split('\n').collect();
     let last = lines.pop().unwrap_or_default();

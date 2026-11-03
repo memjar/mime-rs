@@ -12,15 +12,15 @@ use alloc::{borrow::Cow, string::String};
 pub struct MimeCharsetText<'b> {
     /// The text, lossily decoded where a byte did not fit the charset.
     pub text: Cow<'b, str>,
-    /// Whether the label named a charset the build knows. An unknown one
-    /// decodes as UTF-8.
+    /// Whether the label named a charset the build knows.
+    ///
+    /// An unknown one decodes as UTF-8.
     pub known: bool,
     /// Whether some bytes did not fit the charset and were replaced.
     pub malformed: bool,
 }
 
-/// Whether `label` names UTF-8 or US-ASCII, the two charsets the core reads
-/// without the `encoding` feature.
+/// Whether `label` names UTF-8 or US-ASCII, read even without `encoding`.
 pub fn is_utf8_label(label: &str) -> bool {
     let label = clean_label(label);
 
@@ -36,8 +36,7 @@ pub fn is_utf8_label(label: &str) -> bool {
     .any(|known| label.eq_ignore_ascii_case(known))
 }
 
-/// Strips the quotes, blanks and RFC 2231 language suffix (`utf-8*en`) a
-/// label may carry.
+/// Strips a label's quotes, blanks and RFC 2231 language suffix (`utf-8*en`).
 pub fn clean_label(label: &str) -> &str {
     let label = label.trim().trim_matches('"').trim();
     label.split('*').next().unwrap_or(label)
@@ -45,77 +44,99 @@ pub fn clean_label(label: &str) -> &str {
 
 /// Transcodes `bytes` from the charset `label` names.
 ///
-/// Without the `encoding` feature, only a UTF-8 or US-ASCII label decodes,
-/// and any other returns `None`, so the caller keeps the bytes as written
-/// rather than guess. With it, every WHATWG label decodes, a byte order mark
-/// is not looked at, and an unknown label decodes as UTF-8 with `known`
-/// false.
+/// Without `encoding`, only UTF-8 and US-ASCII decode; others give `None` so
+/// the caller keeps the bytes rather than guess. With it, WHATWG labels decode
+/// (BOM ignored) and an unknown label decodes as UTF-8 with `known` false.
 pub fn transcode<'b>(label: &str, bytes: &'b [u8]) -> Option<MimeCharsetText<'b>> {
     if is_utf8_label(label) {
         return Some(utf8(bytes, true));
     }
 
-    #[cfg(feature = "encoding")]
-    let text = Some(
-        match encoding_rs::Encoding::for_label(clean_label(label).as_bytes()) {
-            Some(encoding) => {
-                let (text, malformed) = encoding.decode_without_bom_handling(bytes);
-                MimeCharsetText {
-                    text,
-                    known: true,
-                    malformed,
-                }
-            }
-            None => utf8(bytes, false),
-        },
-    );
-    #[cfg(not(feature = "encoding"))]
-    let text = None;
-
-    text
+    transcode_other(label, bytes)
 }
 
-/// Transcodes a body from the charset `label` names, a byte order mark at
-/// its start taking precedence; an absent label reads as UTF-8.
+/// Transcodes from a charset other than UTF-8 and US-ASCII.
+#[cfg(feature = "encoding")]
+fn transcode_other<'b>(label: &str, bytes: &'b [u8]) -> Option<MimeCharsetText<'b>> {
+    let text = match encoding_rs::Encoding::for_label(clean_label(label).as_bytes()) {
+        Some(encoding) => {
+            let (text, malformed) = encoding.decode_without_bom_handling(bytes);
+            MimeCharsetText {
+                text,
+                known: true,
+                malformed,
+            }
+        }
+        None => utf8(bytes, false),
+    };
+
+    Some(text)
+}
+
+/// Transcodes from a charset other than UTF-8 and US-ASCII: never.
+#[cfg(not(feature = "encoding"))]
+fn transcode_other<'b>(_label: &str, _bytes: &'b [u8]) -> Option<MimeCharsetText<'b>> {
+    None
+}
+
+/// Transcodes a body from the charset `label` names, or UTF-8 with no label.
 ///
-/// Without the `encoding` feature this is [`transcode`] with the UTF-8
-/// fallback for an absent label.
+/// A byte order mark at its start takes precedence. Without the `encoding`
+/// feature this is [`transcode`] with the UTF-8 fallback for an absent label.
 pub fn transcode_body<'b>(label: Option<&str>, bytes: &'b [u8]) -> Option<MimeCharsetText<'b>> {
-    #[cfg(feature = "encoding")]
-    if let Some((encoding, bom)) = encoding_rs::Encoding::for_bom(bytes) {
-        let (text, malformed) = encoding.decode_without_bom_handling(&bytes[bom..]);
-        return Some(MimeCharsetText {
-            text,
-            known: true,
-            malformed,
-        });
+    if let Some(text) = transcode_bom(bytes) {
+        return Some(text);
     }
 
     transcode(label.unwrap_or("utf-8"), bytes)
 }
 
-/// Encodes `text` in the charset `label` names, `None` when the build
-/// cannot, or when the charset cannot hold every character of the text.
+/// Transcodes a body from the charset its leading byte order mark names.
+#[cfg(feature = "encoding")]
+fn transcode_bom(bytes: &[u8]) -> Option<MimeCharsetText<'_>> {
+    let (encoding, bom) = encoding_rs::Encoding::for_bom(bytes)?;
+    let (text, malformed) = encoding.decode_without_bom_handling(&bytes[bom..]);
+
+    Some(MimeCharsetText {
+        text,
+        known: true,
+        malformed,
+    })
+}
+
+/// Transcodes a body from its byte order mark: never, the mark is not read.
+#[cfg(not(feature = "encoding"))]
+fn transcode_bom(_bytes: &[u8]) -> Option<MimeCharsetText<'_>> {
+    None
+}
+
+/// Encodes `text` in the charset `label` names, `None` when it cannot.
 ///
-/// Without the `encoding` feature only a UTF-8 or US-ASCII label encodes
-/// (US-ASCII only for ASCII text); with it, every charset the WHATWG
-/// standard can write.
+/// The build may not know the charset, or the charset not hold every
+/// character. Without `encoding` only UTF-8 and US-ASCII (ASCII text only)
+/// encode; with it, every charset the WHATWG standard can write.
 pub fn encode<'t>(label: &str, text: &'t str) -> Option<Cow<'t, [u8]>> {
     if is_utf8_label(label) {
         let ascii = !clean_label(label).to_ascii_lowercase().contains("utf");
         return (!ascii || text.is_ascii()).then_some(Cow::Borrowed(text.as_bytes()));
     }
 
-    #[cfg(feature = "encoding")]
-    let bytes =
-        encoding_rs::Encoding::for_label(clean_label(label).as_bytes()).and_then(|encoding| {
-            let (bytes, used, unmappable) = encoding.encode(text);
-            (used == encoding && !unmappable).then_some(bytes)
-        });
-    #[cfg(not(feature = "encoding"))]
-    let bytes = None;
+    encode_other(label, text)
+}
 
-    bytes
+/// Encodes in a charset other than UTF-8 and US-ASCII.
+#[cfg(feature = "encoding")]
+fn encode_other<'t>(label: &str, text: &'t str) -> Option<Cow<'t, [u8]>> {
+    let encoding = encoding_rs::Encoding::for_label(clean_label(label).as_bytes())?;
+    let (bytes, used, unmappable) = encoding.encode(text);
+
+    (used == encoding && !unmappable).then_some(bytes)
+}
+
+/// Encodes in a charset other than UTF-8 and US-ASCII: never.
+#[cfg(not(feature = "encoding"))]
+fn encode_other<'t>(_label: &str, _text: &'t str) -> Option<Cow<'t, [u8]>> {
+    None
 }
 
 fn utf8(bytes: &[u8], known: bool) -> MimeCharsetText<'_> {

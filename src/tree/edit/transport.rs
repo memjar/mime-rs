@@ -26,11 +26,11 @@ use crate::{
 /// What a downgrade to 7bit could not do.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct MimeDowngrade {
-    /// The fields carrying UTF-8 (RFC 6532), which no re-encoding fixes
-    /// losslessly, by entity index and name.
+    /// The fields carrying UTF-8 (RFC 6532), by entity index and name.
+    ///
+    /// No re-encoding fixes them losslessly.
     pub utf8_fields: Vec<(usize, String)>,
-    /// The entities that needed re-encoding but lie in protected content,
-    /// left as they are.
+    /// The protected entities that needed re-encoding, left as they are.
     pub sealed: Vec<usize>,
 }
 
@@ -42,9 +42,10 @@ impl MimeDowngrade {
 }
 
 impl MimeCst<'_> {
-    /// Adds the Date and Message-ID the message lacks, and MIME-Version
-    /// when it has a Content- field and none, leaving every existing byte
-    /// in place. Idempotent.
+    /// Adds the Date, Message-ID and MIME-Version fields the message lacks.
+    ///
+    /// MIME-Version only when it has a Content- field. Every existing byte
+    /// stays in place, and a second call changes nothing.
     pub fn fill_required(
         &mut self,
         date: &MimeDateTime,
@@ -80,13 +81,11 @@ impl MimeCst<'_> {
         Ok(())
     }
 
-    /// Re-encodes every leaf written as is that a 7-bit transport cannot
-    /// carry (`8bit`, `binary`, or 8-bit bytes, NUL, stray CR or LF or long
-    /// lines under no encoding) as quoted-printable or base64, recursing
-    /// into nested messages rather than encoding them (RFC 2046 5.2.1), and
-    /// labels the containers holding them `7bit` again. 7-bit leaves are
-    /// left untouched; fields carrying UTF-8 and protected entities are
-    /// reported instead.
+    /// Re-encodes the leaves a 7-bit transport cannot carry, reports the rest.
+    ///
+    /// Leaves in `8bit`, `binary`, or unencoded with 8-bit bytes, NUL, stray CR
+    /// or LF or long lines become quoted-printable or base64, their containers
+    /// `7bit`; nested messages are recursed into, not encoded (RFC 2046 5.2.1).
     pub fn downgrade_7bit(
         &mut self,
         opts: &MimeBuildOptions,
@@ -117,10 +116,10 @@ impl MimeCst<'_> {
     }
 }
 
-/// Downgrades one entity and what it holds, in document order, numbering
-/// entities as `MimeCst::entities` does; `protected` says whether a
-/// signature or an encryption covers it, `taken` holds the enclosing
-/// boundaries.
+/// Downgrades one entity and what it holds, numbered as `MimeCst::entities`.
+///
+/// `protected` says whether a signature or an encryption covers it, `taken`
+/// holds the enclosing boundaries.
 fn downgrade(
     entity: &mut MimeEntity<'_>,
     protected: bool,

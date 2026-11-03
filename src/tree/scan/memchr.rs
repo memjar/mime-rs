@@ -12,8 +12,8 @@ use ::memchr::{memchr_iter, memmem};
 use crate::tree::scan::scalar::empty_line;
 
 /// See [`scalar::field_ends`](crate::tree::scan::scalar::field_ends).
-// NOTE: inlined into the answer loop, as it was before the wider empty line
-// grew it past the threshold.
+// NOTE: hinted, since the empty line check grows it past the threshold for
+// inlining into the answer loop.
 #[inline]
 pub fn field_ends(input: &[u8], range: Range<usize>, out: &mut Vec<usize>) {
     let end = range.end.min(input.len());

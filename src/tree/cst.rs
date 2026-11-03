@@ -28,8 +28,9 @@ pub struct MimeCst<'a> {
 }
 
 impl<'a> MimeCst<'a> {
-    /// Parses any bytes into a tree, answering the parse coroutine's
-    /// searches through memchr under the default bounds. Never fails.
+    /// Parses any bytes into a tree under the default bounds; never fails.
+    ///
+    /// The parse coroutine's searches are answered through memchr.
     pub fn parse(input: &'a [u8]) -> Self {
         Self::parse_with(input, MimeParseOptions::default())
     }
@@ -39,8 +40,7 @@ impl<'a> MimeCst<'a> {
         answer(input, MimeParse::new(input, opts))
     }
 
-    /// Splits every body the parse left unparsed, as
-    /// [`MimeEntity::expand`] does, each from its own entity.
+    /// Splits every unparsed body through its entity's [`MimeEntity::expand`].
     pub fn expand(&mut self, opts: MimeParseOptions) {
         let mut stack = Vec::from([&mut self.root]);
 
@@ -60,8 +60,9 @@ impl<'a> MimeCst<'a> {
         }
     }
 
-    /// Every byte of the message, in order, as borrowed slices; their
-    /// concatenation is [`to_bytes`](Self::to_bytes).
+    /// Every byte of the message, in order, as borrowed slices.
+    ///
+    /// Their concatenation is [`to_bytes`](Self::to_bytes).
     pub fn chunks(&self) -> Vec<&[u8]> {
         self.root.chunks()
     }
@@ -78,8 +79,9 @@ impl<'a> MimeCst<'a> {
         out
     }
 
-    /// Every anomaly the parse recorded, with the index of its entity in
-    /// [`entities`](Self::entities).
+    /// Every anomaly the parse recorded, with the index of its entity.
+    ///
+    /// The index is into [`entities`](Self::entities).
     pub fn anomalies(&self) -> Vec<(usize, MimeAnomaly)> {
         self.entities()
             .into_iter()
@@ -126,8 +128,7 @@ fn push_entities<'s, 'a>(entity: &'s MimeEntity<'a>, out: &mut Vec<&'s MimeEntit
     }
 }
 
-/// Runs a parse coroutine to completion over `input`, answering its
-/// searches through memchr.
+/// Runs a parse coroutine over `input`, answering its searches through memchr.
 pub(crate) fn answer<'a>(input: &'a [u8], mut parse: MimeParse<'a>) -> MimeCst<'a> {
     let mut found = Vec::with_capacity(64);
     let mut arg = None;

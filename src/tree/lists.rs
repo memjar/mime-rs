@@ -22,8 +22,9 @@ pub struct MimeBodyLists<'t, 'a> {
 }
 
 impl<'t, 'a> MimeBodyLists<'t, 'a> {
-    /// Computes the lists of the message rooted at `root`. A nested message
-    /// is one attachment; its own lists are its own.
+    /// Computes the lists of the message rooted at `root`.
+    ///
+    /// A nested message is one attachment; its own lists are its own.
     pub fn new(root: &'t MimeEntity<'a>) -> Self {
         let mut lists = Self::default();
         let mut text = Vec::new();
@@ -43,8 +44,9 @@ impl<'t, 'a> MimeBodyLists<'t, 'a> {
         lists
     }
 
-    /// Whether the message has an attachment a reader should offer: an
-    /// attachment not marked `inline` (RFC 8621 4.1.4).
+    /// Whether the message has an attachment a reader should offer.
+    ///
+    /// That is one not marked `inline` (RFC 8621 4.1.4).
     pub fn has_attachment(&self) -> bool {
         self.attachments.iter().any(|part| {
             !part

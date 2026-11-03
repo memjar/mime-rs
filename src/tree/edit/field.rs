@@ -26,8 +26,9 @@ use crate::{
 };
 
 impl<'a> MimeHeaderBlock<'a> {
-    /// Sets the first field the marker names to `value`, rewriting that
-    /// field alone, or inserts it when the block has none.
+    /// Sets the first field the marker names to `value`, or inserts one.
+    ///
+    /// That field alone is rewritten.
     pub fn set<M: MimeHeaderMarker>(
         &mut self,
         value: M::Value,
@@ -45,8 +46,9 @@ impl<'a> MimeHeaderBlock<'a> {
         self.insert_value(&MimeHeaderName::Known(M::KIND), &M::into_value(value), opts)
     }
 
-    /// Sets the first field named `name` to `value`, rewriting that field
-    /// alone, or inserts it when the block has none. Content-Type and
+    /// Sets the first field named `name` to `value`, or inserts one.
+    ///
+    /// That field alone is rewritten. Content-Type and
     /// Content-Transfer-Encoding are refused: they state how the body reads,
     /// and change through the content and structural edits.
     pub fn set_value(
@@ -59,10 +61,11 @@ impl<'a> MimeHeaderBlock<'a> {
         self.set_field(name, value, opts)
     }
 
-    /// Inserts a field named `name`, after the last field of that name,
-    /// else at the end of the block, or at the top for a trace field. The
-    /// structural fields are refused, as [`set_value`](Self::set_value)
-    /// refuses them.
+    /// Inserts a field named `name` where it belongs.
+    ///
+    /// After the last field of that name, else at the end of the block, or at
+    /// the top for a trace field. Structural fields are refused, as by
+    /// [`set_value`](Self::set_value).
     pub fn insert_value(
         &mut self,
         name: &MimeHeaderName,
@@ -73,8 +76,7 @@ impl<'a> MimeHeaderBlock<'a> {
         self.insert_field(name, value, opts)
     }
 
-    /// [`set_value`](Self::set_value) for any field, the structural ones
-    /// included.
+    /// [`set_value`](Self::set_value), structural fields included.
     pub(crate) fn set_field(
         &mut self,
         name: &MimeHeaderName,
@@ -90,8 +92,7 @@ impl<'a> MimeHeaderBlock<'a> {
         Ok(())
     }
 
-    /// [`insert_value`](Self::insert_value) for any field, the structural
-    /// ones included.
+    /// [`insert_value`](Self::insert_value), structural fields included.
     pub(crate) fn insert_field(
         &mut self,
         name: &MimeHeaderName,
@@ -126,10 +127,11 @@ impl<'a> MimeHeaderBlock<'a> {
         Ok(())
     }
 
-    /// Removes every field named `name`, its continuation lines included,
-    /// and returns how many there were. When no field is left, the opaque
-    /// lines go too, since a block of them alone would read as body. The
-    /// structural fields are refused.
+    /// Removes every field named `name` and returns how many there were.
+    ///
+    /// Continuation lines go with each field. With no field left, the opaque
+    /// lines go too, since a block of them alone would read as body. Structural
+    /// fields are refused.
     pub fn remove_all(&mut self, name: &str) -> Result<usize, MimeBuildError> {
         structural(name)?;
 
@@ -174,9 +176,10 @@ impl<'a> MimeHeaderBlock<'a> {
         Ok(before - after)
     }
 
-    /// Appends an item (a mailbox or a group) to the first address field
-    /// named `name`, keeping every byte of its other items, or inserts the
-    /// field when the block has none.
+    /// Appends a mailbox or a group to the first address field named `name`.
+    ///
+    /// Every byte of its other items is kept; the field is inserted when the
+    /// block has none.
     pub fn push_address(
         &mut self,
         name: &str,
@@ -219,8 +222,9 @@ impl<'a> MimeHeaderBlock<'a> {
         Ok(())
     }
 
-    /// Replaces the item at `position` of the first address field named
-    /// `name`, keeping the blanks around it and every byte of the others.
+    /// Replaces the item at `position` of the first address field `name`.
+    ///
+    /// The blanks around it and every byte of the others are kept.
     pub fn set_address(
         &mut self,
         name: &str,
@@ -250,9 +254,10 @@ impl<'a> MimeHeaderBlock<'a> {
         Ok(())
     }
 
-    /// Removes the item at `position` of the first address field named
-    /// `name` with the comma separating it, keeping every byte of the
-    /// others; removing the last item removes the field.
+    /// Removes the item at `position` of the first address field `name`.
+    ///
+    /// Its separating comma goes with it, every byte of the others stays, and
+    /// removing the last item removes the field.
     pub fn remove_address(&mut self, name: &str, position: usize) -> Result<(), MimeEditError> {
         let index = self
             .position(name)
@@ -318,8 +323,7 @@ impl<'a> MimeHeaderBlock<'a> {
         }
     }
 
-    /// The line ending a rewritten field ends with: its own, else the
-    /// block's.
+    /// The line ending of a rewritten field: its own, else the block's.
     fn eol(&self, field: &MimeHeaderField<'_>) -> &'static [u8] {
         match field.eol() {
             b"\n" => b"\n",
@@ -344,8 +348,7 @@ impl<'a> MimeHeaderBlock<'a> {
             .ok_or(MimeBuildError::LineTooLong)
     }
 
-    /// Rewrites the value of the field at `index` as `value`, its name and
-    /// colon kept as written.
+    /// Rewrites the value of the field at `index`, keeping its name and colon.
     fn rewrite(&mut self, index: usize, value: &[u8]) {
         let field = self.field(index);
         let eol = self.eol(field);
@@ -373,9 +376,10 @@ impl<'a> MimeHeaderBlock<'a> {
         Ok(trim_start(value).to_vec())
     }
 
-    /// Inserts an item at `position`, giving the line before it a line
-    /// ending when it has none, and the block an empty line when it had no
-    /// field and none, so that what follows still reads as the body.
+    /// Inserts an item at `position`, ending the lines around it as needed.
+    ///
+    /// The line before it gets a line ending when it has none, and a block of
+    /// no field its missing empty line, so what follows still reads as body.
     pub(crate) fn place(&mut self, position: usize, item: MimeHeaderItem<'a>) {
         let eol = self.line_ending();
         let empty = !self
@@ -398,9 +402,10 @@ impl<'a> MimeHeaderBlock<'a> {
 }
 
 impl MimeHeaderBlock<'_> {
-    /// Ends the block so that a body can follow it: its last line given a
-    /// line ending when it has none, and the empty line added when it is
-    /// missing.
+    /// Ends the block so that a body can follow it.
+    ///
+    /// Its last line gets a line ending when it has none, and the empty line is
+    /// added when missing.
     pub(crate) fn terminate(&mut self) {
         // NOTE: a trailing opaque line of blanks would end the block once
         // given a line ending, so it becomes the empty line itself.
@@ -470,8 +475,7 @@ impl MimeHeaderBlock<'_> {
     }
 }
 
-/// Refuses Content-Type and Content-Transfer-Encoding, which a field edit
-/// may not change.
+/// Refuses Content-Type and Content-Transfer-Encoding to a field edit.
 fn structural(name: &str) -> Result<(), MimeBuildError> {
     match MimeHeaderName::new(name).kind() {
         Some(kind @ (MimeHeaderKind::ContentType | MimeHeaderKind::ContentTransferEncoding)) => {

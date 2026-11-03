@@ -157,7 +157,7 @@ dependencies = [
 
 [[package]]
 name = "mime-rs"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "base64-codec",
  "encoding_rs",

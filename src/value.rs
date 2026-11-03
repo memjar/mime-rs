@@ -25,8 +25,9 @@ use crate::value::{
 /// Refs: <https://datatracker.ietf.org/doc/html/rfc8621#section-4.1.2>
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MimeHeaderValue {
-    /// The value as written, folds included: the raw form, and what a value
-    /// that fits no other form reads as.
+    /// The value as written, folds included.
+    ///
+    /// The raw form, and what a value that fits no other form reads as.
     Raw(Vec<u8>),
     /// Unstructured text, encoded words decoded.
     Text(String),
@@ -113,8 +114,7 @@ impl MimeHeaderValue {
         }
     }
 
-    /// The mechanism, for a [`TransferEncoding`](Self::TransferEncoding)
-    /// value.
+    /// The mechanism, for a [`Self::TransferEncoding`] value.
     pub fn as_transfer_encoding(&self) -> Option<&MimeTransferEncoding> {
         match self {
             Self::TransferEncoding(encoding) => Some(encoding),

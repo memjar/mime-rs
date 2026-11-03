@@ -32,8 +32,7 @@ pub trait MimeHeaderMarker {
     /// What the field's default form decodes to.
     type Value;
 
-    /// Takes the typed value out of a decoded one, `None` when the field did
-    /// not read in its form.
+    /// Takes the typed value out of a decoded one, `None` if not in its form.
     fn from_value(value: MimeHeaderValue) -> Option<Self::Value>;
 
     /// Wraps a typed value into a decoded one of the field's form.

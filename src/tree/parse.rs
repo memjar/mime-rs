@@ -5,11 +5,10 @@
 //! of one header block, every dash line of one body, one needle in one
 //! range) and resumes with the positions the caller found, by any means.
 //!
-//! A message costs one request per header block plus one for its body, so
-//! the hand-off is paid per entity rather than per field. Every answer is
-//! checked before use; a position failing its check is dropped and
-//! reported, and whatever the answers the tree still round-trips, its
-//! leaves partitioning the input.
+//! A message costs one request per header block plus one per body, so the
+//! hand-off is paid per entity, not per field. Every answer is checked: a
+//! position failing its check is dropped and reported, and whatever the
+//! answers, the tree round-trips, its leaves partitioning the input.
 //!
 //! The walk is iterative over an explicit stack, so no input recurses on
 //! the call stack while it is read.
@@ -18,8 +17,11 @@
 //!
 //! ```rust
 //! use mime::tree::{
-//!     coroutine::MimeCoroutineState,
-//!     parse::{MimeParse, MimeParseOptions, MimeParseYield},
+//!     coroutine::MimeCoroutineState::{Complete, Yielded},
+//!     parse::{
+//!         MimeParse, MimeParseOptions,
+//!         MimeParseYield::{WantsDashLines, WantsFieldEnds, WantsFind},
+//!     },
 //!     scan::memchr,
 //! };
 //!
@@ -30,22 +32,22 @@
 //!
 //! let cst = loop {
 //!     match parse.resume(arg.take()) {
-//!         MimeCoroutineState::Yielded(MimeParseYield::WantsFieldEnds { range }) => {
+//!         Yielded(WantsFieldEnds { range }) => {
 //!             found.clear();
 //!             memchr::field_ends(input, range, &mut found);
 //!             arg = Some(found.as_slice());
 //!         }
-//!         MimeCoroutineState::Yielded(MimeParseYield::WantsDashLines { range }) => {
+//!         Yielded(WantsDashLines { range }) => {
 //!             found.clear();
 //!             memchr::dash_lines(input, range, &mut found);
 //!             arg = Some(found.as_slice());
 //!         }
-//!         MimeCoroutineState::Yielded(MimeParseYield::WantsFind { range, needle }) => {
+//!         Yielded(WantsFind { range, needle }) => {
 //!             found.clear();
 //!             memchr::find(input, range, &needle, &mut found);
 //!             arg = Some(found.as_slice());
 //!         }
-//!         MimeCoroutineState::Complete(cst) => break cst,
+//!         Complete(cst) => break cst,
 //!     }
 //! };
 //!
@@ -82,39 +84,45 @@ pub const ENTITIES_MAX: usize = 10_000;
 /// Bounds a parse keeps to.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct MimeParseOptions {
-    /// The most containers (multiparts and messages) nesting on one path,
-    /// the root included. Defaults to [`DEPTH_MAX`].
+    /// The most containers (multiparts and messages) nesting on one path.
+    ///
+    /// The root counts as one. Defaults to [`DEPTH_MAX`].
     pub max_depth: Option<usize>,
     /// The most entities a parse holds. Defaults to [`ENTITIES_MAX`].
     pub max_entities: Option<usize>,
-    /// How many levels of containers (multiparts and messages) to split,
-    /// `None` for all: at `Some(0)` the parse stops after the root header
-    /// block and keeps its body unparsed, so reading headers costs only the
-    /// header block. A body left unparsed is split later by
-    /// [`MimeEntity::expand`](crate::tree::entity::MimeEntity::expand).
+    /// How many levels of containers to split, `None` for all.
+    ///
+    /// At `Some(0)` the parse stops after the root header block and keeps its
+    /// body unparsed, so reading headers costs only that block; the body is
+    /// split later by [`MimeEntity::expand`].
     pub structure_depth: Option<usize>,
 }
 
-/// What the parse coroutine needs found before it can progress. Each
-/// request is answered by resuming with the positions found, in
+/// What the parse coroutine needs found before it can progress.
+///
+/// Each request is answered by resuming with the positions found, in
 /// increasing order.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MimeParseYield {
-    /// Every field end of the header block starting the range: each `\n`
-    /// whose next byte is neither SP nor HTAB, or that ends the range,
-    /// stopping after the first one followed by an empty line.
+    /// Every field end of the header block starting the range.
+    ///
+    /// A field end is a `\n` whose next byte is neither SP nor HTAB, or that
+    /// ends the range; the search stops after the first one followed by an
+    /// empty line.
     WantsFieldEnds {
         /// The entity the header block starts.
         range: Range<usize>,
     },
-    /// Every line start in the range beginning with `--`, the range start
-    /// counting as a line start.
+    /// Every line start in the range beginning with `--`.
+    ///
+    /// The range start counts as a line start.
     WantsDashLines {
         /// The body of the outermost multipart.
         range: Range<usize>,
     },
-    /// Every non-overlapping occurrence of `needle` in the range, leftmost
-    /// first, for a multipart with no delimiter at the start of a line.
+    /// Every non-overlapping occurrence of `needle` in the range.
+    ///
+    /// Leftmost first, for a multipart with no delimiter at a line start.
     WantsFind {
         /// The multipart body.
         range: Range<usize>,
@@ -125,16 +133,13 @@ pub enum MimeParseYield {
 
 /// The I/O-free parse coroutine.
 ///
-/// The tree is built in place: every entity is written straight into its
-/// slot rather than moved through the parse. Entities run depth first and
-/// a part joins its multipart when it starts, so the entity being parsed is
-/// reached from the root through the last part of each multipart on the
-/// way.
-// NOTE: the entity and the multipart in progress are fields read one by
-// one, and the state carries no data: a value moved whole through the state
-// was copied with wide loads over the narrow stores that had just written
-// it, padding included, and each such load waited on its stores (store
-// forwarding failing).
+/// The tree is built in place, every entity written straight into its slot.
+/// Entities run depth first and a part joins its multipart when it starts, so
+/// the entity being parsed is reached from the root through last parts.
+// NOTE: the entity and multipart in progress are fields read one by one and
+// the state carries no data: a value moved whole through the state was copied
+// by wide loads over the narrow stores just written, padding included, each
+// load stalling on them (store forwarding failing).
 #[derive(Debug)]
 pub struct MimeParse<'a> {
     input: &'a [u8],
@@ -175,12 +180,11 @@ impl<'a> MimeParse<'a> {
         }
     }
 
-    /// Builds a coroutine splitting the body `input` of an entity whose
-    /// header block is `header`, as the parse would have split it: the body
-    /// a parse left [`Unparsed`](MimeBodyNode::Unparsed). The structure
-    /// depth counts from that entity, so `Some(0)` splits it alone.
+    /// Builds a coroutine splitting an entity's unparsed body `input`.
     ///
-    /// The tree it completes with is that entity, under a copy of `header`.
+    /// It splits [`Unparsed`](MimeBodyNode::Unparsed) as the parse would have
+    /// and completes with the entity, under a copy of `header`. The structure
+    /// depth counts from the entity, so `Some(0)` splits it alone.
     pub fn unparsed(
         header: &MimeHeaderBlock<'a>,
         input: &'a [u8],
@@ -191,12 +195,14 @@ impl<'a> MimeParse<'a> {
         parse.structure_depth = parse.structure_depth.saturating_add(1);
         parse.root.header = header.clone();
         parse.task.digest = digest;
-        parse.state = State::Body;
+        parse.state = State::ReadBody;
         parse
     }
 
-    /// Progresses the parse. Pass `None` first, then the positions found
-    /// for the request last yielded.
+    /// Progresses the parse.
+    ///
+    /// Pass `None` first, then the positions found for the request last
+    /// yielded.
     pub fn resume(
         &mut self,
         arg: Option<&[usize]>,
@@ -204,17 +210,17 @@ impl<'a> MimeParse<'a> {
         let mut arg = arg;
 
         // NOTE: a step that neither yields nor enters a task leaves the state
-        // on the next task.
+        // on `TakeNext`.
         loop {
-            let request = match mem::replace(&mut self.state, State::Next) {
+            let request = match mem::replace(&mut self.state, State::TakeNext) {
                 State::Start => self.start(),
-                State::Body => self.body(0, MimeAnomalies::default()),
-                State::FieldEnds => self.entity(arg.take().unwrap_or_default()),
-                State::DashLines => self.dash_lines(arg.take().unwrap_or_default()),
-                State::Find => self.find(arg.take().unwrap_or_default()),
-                State::Next => {
+                State::ReadBody => self.body(0, MimeAnomalies::default()),
+                State::ReadHeader => self.entity(arg.take().unwrap_or_default()),
+                State::SplitDashLines => self.dash_lines(arg.take().unwrap_or_default()),
+                State::SplitMidLine => self.find(arg.take().unwrap_or_default()),
+                State::TakeNext => {
                     let Some(task) = self.tasks.pop() else {
-                        self.state = State::Done;
+                        self.state = State::Complete;
                         let root = mem::take(&mut self.root);
                         return MimeCoroutineState::Complete(MimeCst { root });
                     };
@@ -222,8 +228,8 @@ impl<'a> MimeParse<'a> {
                     self.enter(task);
                     None
                 }
-                State::Done => {
-                    self.state = State::Done;
+                State::Complete => {
+                    self.state = State::Complete;
                     return MimeCoroutineState::Complete(MimeCst::default());
                 }
             };
@@ -258,8 +264,9 @@ impl<'a> MimeParse<'a> {
         self.state = State::Start;
     }
 
-    /// Starts the entity: settles a header block that needs no search, or
-    /// asks for its field ends.
+    /// Starts the entity.
+    ///
+    /// Settles a header block that needs no search, or asks for its field ends.
     // NOTE: this step and the ones it leads to are inlined into `resume`:
     // a request returned through memory was written by narrow stores then
     // read back whole, which stalled the load (store forwarding failing)
@@ -289,12 +296,11 @@ impl<'a> MimeParse<'a> {
             return self.body(range.start + first_line.len(), MimeAnomalies::default());
         }
 
-        self.state = State::FieldEnds;
+        self.state = State::ReadHeader;
         Some(MimeParseYield::WantsFieldEnds { range })
     }
 
-    /// Builds the header block of the entity from its field ends, then its
-    /// body.
+    /// Builds the entity's header block from its field ends, then its body.
     #[inline(always)]
     fn entity(&mut self, answer: &[usize]) -> Option<MimeParseYield> {
         let input = self.input;
@@ -367,8 +373,7 @@ impl<'a> MimeParse<'a> {
         self.body(pos, anomalies)
     }
 
-    /// Records the entity and decides its body: a multipart to split, a
-    /// nested message to parse, or a leaf.
+    /// Records the entity and decides its body: multipart, message or leaf.
     #[inline(always)]
     fn body(&mut self, start: usize, mut anomalies: MimeAnomalies) -> Option<MimeParseYield> {
         let input = self.input;
@@ -428,7 +433,7 @@ impl<'a> MimeParse<'a> {
                     return self.split(None);
                 }
 
-                self.state = State::DashLines;
+                self.state = State::SplitDashLines;
                 Some(MimeParseYield::WantsDashLines { range: body })
             }
             Kind::Message if starts_with_field(&input[body.clone()]) => {
@@ -445,9 +450,9 @@ impl<'a> MimeParse<'a> {
         }
     }
 
-    /// Keeps the dash lines of the outermost multipart body, each checked
-    /// (in the body, increasing, `--` at the start of a line), then splits
-    /// it.
+    /// Keeps the checked dash lines of the outermost multipart, then splits it.
+    ///
+    /// Each must lie in the body, increase, and start a line with `--`.
     #[inline(always)]
     fn dash_lines(&mut self, answer: &[usize]) -> Option<MimeParseYield> {
         let input = self.input;
@@ -474,9 +479,10 @@ impl<'a> MimeParse<'a> {
         self.split(None)
     }
 
-    /// Splits the multipart again with the boundary's occurrences, each
-    /// checked (in the body, increasing, on the boundary), for its
-    /// delimiters found mid-line.
+    /// Splits the multipart again for its delimiters found mid-line.
+    ///
+    /// Each boundary occurrence is checked: in the body, increasing, on the
+    /// boundary.
     #[inline(always)]
     fn find(&mut self, answer: &[usize]) -> Option<MimeParseYield> {
         let input = self.input;
@@ -510,9 +516,10 @@ impl<'a> MimeParse<'a> {
         self.split(Some(&mid))
     }
 
-    /// Splits the multipart at its delimiter lines, from the dash lines
-    /// already found and, for the fallback, from the boundary's mid-line
-    /// occurrences.
+    /// Splits the multipart at its delimiter lines.
+    ///
+    /// From the dash lines already found and, for the fallback, from the
+    /// boundary's mid-line occurrences.
     #[inline(always)]
     fn split(&mut self, mid: Option<&[usize]>) -> Option<MimeParseYield> {
         let input = self.input;
@@ -530,7 +537,7 @@ impl<'a> MimeParse<'a> {
 
         let Some(mid) = mid else {
             if needs_open || needs_close {
-                self.state = State::Find;
+                self.state = State::SplitMidLine;
                 return Some(MimeParseYield::WantsFind {
                     range: body,
                     needle: boundary.to_vec(),
@@ -651,22 +658,23 @@ enum State {
     /// Starts the task.
     Start,
     /// Reads the body of the task, its header block already set.
-    Body,
+    ReadBody,
     /// Reads the header block of the task from its field ends.
-    FieldEnds,
+    ReadHeader,
     /// Splits the multipart from the dash lines of its body.
-    DashLines,
-    /// Splits the multipart again from the boundary's occurrences.
-    Find,
+    SplitDashLines,
+    /// Splits the multipart again at the boundary's mid-line occurrences.
+    SplitMidLine,
     /// Takes the next task, or completes.
-    Next,
-    /// Completed.
-    Done,
+    TakeNext,
+    /// Completes with an empty tree, the real one already handed over.
+    Complete,
 }
 
-/// An entity to parse: its bytes, where the delimiter line opening it
-/// starts when it is a part, its depth, and whether its multipart is a
-/// digest.
+/// An entity to parse.
+///
+/// Its bytes, where the delimiter line opening it starts when it is a part,
+/// its depth, and whether its multipart is a digest.
 #[derive(Debug)]
 struct Task {
     range: Range<usize>,
@@ -675,8 +683,7 @@ struct Task {
     digest: bool,
 }
 
-/// A multipart to split: its body, boundary and depth, and whether it is a
-/// digest.
+/// A multipart to split: its body, boundary and depth, and if it is a digest.
 #[derive(Debug, Default)]
 struct Split<'a> {
     body: Range<usize>,
@@ -685,8 +692,9 @@ struct Split<'a> {
     digest: bool,
 }
 
-/// The entity at `depth` on the way to the one being parsed, the root at
-/// depth 1: through the last part of each multipart.
+/// The entity at `depth` on the way to the one being parsed, the root at 1.
+///
+/// The way runs through the last part of each multipart.
 fn current<'e, 'a>(root: &'e mut MimeEntity<'a>, depth: usize) -> &'e mut MimeEntity<'a> {
     let mut entity = root;
 
@@ -765,8 +773,9 @@ impl<'a> Kind<'a> {
     }
 }
 
-/// Whether the entity's transfer encoding leaves its body as written:
-/// none, `7bit`, `8bit`, `binary`, or one this crate does not know.
+/// Whether the entity's transfer encoding leaves its body as written.
+///
+/// None, `7bit`, `8bit`, `binary`, or one this crate does not know.
 pub(crate) fn identity_encoding(header: &MimeHeaderBlock<'_>) -> bool {
     let Some(field) = header.get_all("Content-Transfer-Encoding").last() else {
         return true;
@@ -778,8 +787,7 @@ pub(crate) fn identity_encoding(header: &MimeHeaderBlock<'_>) -> bool {
     )
 }
 
-/// A delimiter line, from the line ending before it to the end of its own
-/// line.
+/// A delimiter line, from the line ending before it to its own line's end.
 #[derive(Debug)]
 struct Delimiter {
     start: usize,
@@ -834,8 +842,9 @@ impl Delimiter {
     }
 }
 
-/// Fills `delimiters` with the delimiter lines among the dash lines of a
-/// body, in order, the scan stopping after the first close delimiter.
+/// Fills `delimiters` with the delimiter lines among a body's dash lines.
+///
+/// In order, the scan stopping after the first close delimiter.
 fn line_delimiters(
     input: &[u8],
     body: &Range<usize>,
@@ -865,8 +874,10 @@ fn line_delimiters(
     }
 }
 
-/// Whether the first line of `bytes` can open a header block: it holds a
-/// colon. A nested message whose content opens with no field is not one.
+/// Whether the first line of `bytes` can open a header block.
+///
+/// It holds a colon and starts with no blank: a nested message whose content
+/// opens with no field is not one.
 fn starts_with_field(bytes: &[u8]) -> bool {
     let line = bytes
         .split(|byte| *byte == b'\n')
@@ -875,9 +886,10 @@ fn starts_with_field(bytes: &[u8]) -> bool {
     !matches!(line.first(), None | Some(b' ' | b'\t')) && line.contains(&b':')
 }
 
-/// Pushes the header block items one logical line makes, its line ending
-/// included: a field, or an opaque line, or an opaque line then the field
-/// folded after it, as in `garbage\n Subject: x`.
+/// Pushes the header items one logical line makes, its line ending included.
+///
+/// A field, or an opaque line, or an opaque line then the field folded after
+/// it, as in `garbage\n Subject: x`.
 fn push_items<'a>(
     bytes: &'a [u8],
     items: &mut Vec<MimeHeaderItem<'a>>,
@@ -965,8 +977,9 @@ fn has_colon(line: &[u8]) -> bool {
     line[lead..].contains(&b':')
 }
 
-/// Pushes a field cut from its whole line, its line ending included; a
-/// line too long for the offsets stays opaque.
+/// Pushes a field cut from its whole line, its line ending included.
+///
+/// A line too long for the offsets stays opaque.
 fn push_field<'a>(
     line: &'a [u8],
     name_end: usize,

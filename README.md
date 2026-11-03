@@ -8,7 +8,6 @@ MIME message parser, validator, editor and builder library for Rust
 - [RFC coverage](#rfc-coverage)
 - [Usage](#usage)
 - [Examples](#examples)
-- [Benchmarks](#benchmarks)
 - [AI policy](https://github.com/pimalaya/.github/blob/master/AI_POLICY.md)
 - [License](#license)
 - [Social](#social)
@@ -24,7 +23,7 @@ MIME message parser, validator, editor and builder library for Rust
 - **I/O-free**: parsing is a coroutine handing its byte searches to the caller (memchr by default).
 - **Strict building**: messages checked against the standard and written deterministically.
 - **Validation**: every rule a message breaks, and a proof type only a valid message earns.
-- **Fast**: ahead of mail-parser and mail-builder on every benchmark, base64 and quoted-printable on SIMD codecs.
+- **Fast**: ahead of mail-parser and mail-builder on every benchmark (see the [benchmarks](./benches/README.md)), base64 and quoted-printable on SIMD codecs.
 - **Portable**: no_std, free of `unsafe`.
 
 > [!TIP]
@@ -69,40 +68,6 @@ See documentation at [docs.rs](https://docs.rs/mime-rs/latest/mime).
 ## Examples
 
 See complete examples at [./examples](./examples).
-
-## Benchmarks
-
-[criterion](https://crates.io/crates/criterion) medians of `cargo bench --bench compare` on 2026-11-02, on an AMD Ryzen AI Max+ 395 (Zen 5), rustc 1.99. Each italic delta compares its row with mime-rs. The method, the workloads in full and what moved the numbers are in [benches/README.md](./benches/README.md).
-
-### Parsing
-
-The 153 messages of tests/corpus (RFC, legacy, third-party and malformed ones, about 108 KiB), in MiB/s of message bytes:
-
-- `structure`: parse, then the content type of every part.
-- `headers`: parse, then the decoded Subject, the first From address, the Date as a timestamp and the Message-ID.
-- `header block`: `headers` with the parse stopped at the header block (`structure_depth: Some(0)`), against mail-parser's `parse_headers`.
-- `full`: parse, then every leaf decoded, text transcoded to UTF-8.
-
-| MiB/s | structure | headers | header block | full |
-| --- | ---: | ---: | ---: | ---: |
-| **mime-rs** | **1,257** | **1,071** | **2,478** | **863** |
-| [mail-parser](https://crates.io/crates/mail-parser) 1.0 | *(-36%)* **804** | *(-27%)* **786** | *(-15%)* **2,099** | *(-17%)* **717** |
-
-### Building and editing
-
-In GiB/s of message bytes:
-
-- `build`: a message of a text body, an HTML body, two attachments and an inline image (about 110 KiB) written to bytes.
-- `edit`: the Subject of a message carrying a 2 MiB attachment changed and the message written out; with mail-parser and mail-builder, the only way is a parse and a rebuild.
-- `edit, header block`: `edit` with the parse stopped at the header block.
-
-| GiB/s | build | edit | edit, header block |
-| --- | ---: | ---: | ---: |
-| **mime-rs** | **6.34** | **35.99** | **65.31** |
-| [mail-builder](https://crates.io/crates/mail-builder) 1.0 | *(-23%)* **4.85** | | |
-| [mail-parser](https://crates.io/crates/mail-parser) 1.0 and [mail-builder](https://crates.io/crates/mail-builder) 1.0 | | *(-82%)* **6.62** | *(-90%)* **6.62** |
-
-The libraries do different work: mail-parser builds a read-only index, mime-rs a tree every byte of which can be edited and written back.
 
 ## License
 

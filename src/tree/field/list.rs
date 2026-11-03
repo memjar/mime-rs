@@ -8,9 +8,10 @@ use alloc::{string::String, vec::Vec};
 
 use crate::{codec::rfc2047, tree::field::lex::Lexer};
 
-/// Reads message identifiers in order, without their angle brackets,
-/// comments and blanks skipped, an identifier written without brackets
-/// kept whole.
+/// Reads message identifiers in order, without their angle brackets.
+///
+/// Comments and blanks are skipped; an identifier written without brackets
+/// is kept whole.
 ///
 /// Refs: <https://datatracker.ietf.org/doc/html/rfc5322#section-3.6.4>
 pub fn parse_message_ids(value: &[u8]) -> Vec<String> {
@@ -52,8 +53,9 @@ pub fn parse_message_ids(value: &[u8]) -> Vec<String> {
     if ids.is_empty() { bare } else { ids }
 }
 
-/// Reads the URLs of an RFC 2369 list in order, without their angle
-/// brackets; anything outside brackets is ignored.
+/// Reads the URLs of an RFC 2369 list in order, without their angle brackets.
+///
+/// Anything outside brackets is ignored.
 ///
 /// Refs: <https://datatracker.ietf.org/doc/html/rfc2369#section-2>
 pub fn parse_urls(value: &[u8]) -> Vec<String> {
@@ -88,8 +90,9 @@ pub fn parse_urls(value: &[u8]) -> Vec<String> {
     urls
 }
 
-/// Reads comma-separated phrases, each decoded and trimmed, empty ones
-/// dropped; a comma inside a quoted string separates nothing.
+/// Reads comma-separated phrases, each decoded and trimmed, empty ones dropped.
+///
+/// A comma inside a quoted string separates nothing.
 ///
 /// Refs: <https://datatracker.ietf.org/doc/html/rfc5322#section-3.6.5>
 pub fn parse_comma_list(value: &[u8]) -> Vec<String> {

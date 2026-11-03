@@ -39,8 +39,7 @@ pub enum MimeHeaderName {
 }
 
 impl MimeHeaderName {
-    /// Reads a name: a known kind when it spells one, ASCII
-    /// case-insensitively, an unknown name otherwise.
+    /// Reads a name, ASCII case-insensitively, as a known kind if it is one.
     pub fn new(name: &str) -> Self {
         match MimeHeaderKind::from_str(name) {
             Ok(kind) => Self::Known(kind),
@@ -56,8 +55,7 @@ impl MimeHeaderName {
         }
     }
 
-    /// The name's spelling: canonical for a known one, as written for an
-    /// unknown one.
+    /// The name's spelling: canonical if known, as written if unknown.
     pub fn as_str(&self) -> &str {
         match self {
             Self::Known(kind) => kind,
@@ -70,8 +68,7 @@ impl MimeHeaderName {
         self.as_str().eq_ignore_ascii_case(name)
     }
 
-    /// The form the field is read in by default: its spec's for a known
-    /// name, raw for an unknown one.
+    /// The field's default form: its spec's if known, raw if unknown.
     pub fn default_form(&self) -> MimeHeaderForm {
         self.kind()
             .map_or(MimeHeaderForm::Raw, |kind| kind.spec().form)
@@ -176,8 +173,9 @@ impl Deref for MimeHeaderKind {
 impl FromStr for MimeHeaderKind {
     type Err = ();
 
-    /// Reads a field name ASCII case-insensitively; a name holding a blank
-    /// or a control byte matches nothing.
+    /// Reads a field name ASCII case-insensitively.
+    ///
+    /// A name holding a blank or a control byte matches nothing.
     fn from_str(name: &str) -> Result<Self, ()> {
         Self::ALL
             .iter()
