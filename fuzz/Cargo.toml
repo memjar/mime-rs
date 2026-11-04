@@ -12,7 +12,7 @@ libfuzzer-sys = "0.4"
 mail-parser = { version = "=1.0.0", default-features = false, features = ["full_encoding", "serde"] }
 mime-rs = { path = "..", features = ["parser", "base64", "encoding"] }
 serde_json = "1"
-simd-cpu = { version = "0.0.1", git = "https://github.com/pimalaya/simd-cpu", rev = "f2eb72cff2fafad8ae135e00685bc19f9e80e5cc", features = ["std"] }
+simd-cpu = { version = "0.1", features = ["std"] }
 
 [[bin]]
 name = "parse"
