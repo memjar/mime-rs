@@ -14,7 +14,7 @@ change: a-mime-library
 - [x] Phase 4: land a-built-message-is-canonical
 - [x] Phase 5: land an-edit-touches-only-its-bytes
 - [x] Phase 6: land validation-states-what-a-message-breaks
-- [ ] Phase 7: land ready-for-a-first-release
+- [x] Phase 7: land ready-for-a-first-release (without the 24-hour fuzz runs, now a-long-fuzz-campaign)
 - [ ] Open the io-pimdir migration change in io-pimdir's cairn
 - [ ] Open the himalaya migration change in himalaya's cairn
 - [ ] Open the remaining migration changes (himalaya-tui, android, linux, unfog, neverest)

@@ -24,5 +24,5 @@ Quoted-printable moves in [quoted-printable-over-the-codec](../../quoted-printab
 
 ## Risks
 
-- crates.io refuses git and path dependencies: [ready-for-a-first-release](../../ready-for-a-first-release/proposal.md) cannot publish until simd-cpu and base64-codec are on crates.io.
+- crates.io refuses git and path dependencies: [ready-for-a-first-release](../ready-for-a-first-release/proposal.md) cannot publish until simd-cpu and base64-codec are on crates.io.
 - `MimeEntity` equality now compares the token: two parses of the same bytes under different tokens are unequal.

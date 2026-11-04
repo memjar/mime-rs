@@ -95,7 +95,7 @@ Settled on 2026-10-31: the user asked for the whole plan to go ahead autonomousl
 | 4 | [a-built-message-is-canonical](../archive/a-built-message-is-canonical/proposal.md) | Builder and encoder: header encoding, folding, transfer encoding choice, boundaries | Built bytes reparse to their model and read the same through mail-parser; build gate met |
 | 5 | [an-edit-touches-only-its-bytes](../archive/an-edit-touches-only-its-bytes/proposal.md) | Lenses and cursors, structural edits, re-encoding, downgrade, sealing | Edit property tests hold; edit gate met |
 | 6 | [validation-states-what-a-message-breaks](../archive/validation-states-what-a-message-breaks/proposal.md) | Validator, `MimeValid`, transport requirements | Every rule has a failing and a passing case; corpus classified with asserted counts |
-| 7 | [ready-for-a-first-release](../ready-for-a-first-release/proposal.md) | Fuzz campaign, coverage, docs, examples, README, CHANGELOG | Guidelines conformance table all PASS or N/A |
+| 7 | [ready-for-a-first-release](../archive/ready-for-a-first-release/proposal.md) | Fuzz campaign, coverage, docs, examples, README, CHANGELOG | Guidelines conformance table all PASS or N/A |
 
 [benchmarked-against-stalwart](../benchmarked-against-stalwart/proposal.md) runs alongside every phase: it builds the harness in phase 0 and owns the gates each phase must meet.
 

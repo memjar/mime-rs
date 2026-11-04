@@ -1,7 +1,7 @@
 ---
 cairn: change
 id: ready-for-a-first-release
-status: active
+status: landed
 created: 2026-10-31
 ---
 

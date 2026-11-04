@@ -7,7 +7,7 @@ created: 2026-11-02
 
 # The differential target
 
-Two tasks of [ready-for-a-first-release](../../ready-for-a-first-release/proposal.md), asked by the user on 2026-11-02 after asking whether mime-rs is as solid as mail-parser: the answer was no, as nothing compared the two beyond the vendored corpus. This change builds the differential target and the fetched-corpus sweeps, and fixes or records every disagreement they find.
+Two tasks of [ready-for-a-first-release](../ready-for-a-first-release/proposal.md), asked by the user on 2026-11-02 after asking whether mime-rs is as solid as mail-parser: the answer was no, as nothing compared the two beyond the vendored corpus. This change builds the differential target and the fetched-corpus sweeps, and fixes or records every disagreement they find.
 
 ## Why
 
